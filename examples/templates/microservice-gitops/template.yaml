@@ -1,0 +1,262 @@
+# =============================================================================
+# Scaffolder Template: Microservice (Azure DevOps + OpenShift)
+#
+# What this template does:
+#  1. Renders a project skeleton from ./skeleton/ (Dockerfile, Helm chart,
+#     azure-pipelines.yml, catalog-info.yaml, mkdocs.yml)
+#  2. Creates an Azure DevOps repository and pushes the skeleton
+#  3. Registers the service in the Backstage Software Catalog
+#
+# Required backend modules (add to packages/backend/src/index.ts):
+#  - @backstage/plugin-scaffolder-backend-module-azure
+#
+# Required env vars (already in backstage-secrets):
+#  AZURE_DEVOPS_TOKEN, AZURE_DEVOPS_ORG
+# =============================================================================
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: microservice-azure-openshift
+  title: 'Microservice (Azure DevOps + OpenShift)'
+  description: >
+    Bootstraps a new microservice: creates an Azure DevOps repo with CI/CD pipeline
+    (Build → Test → Fortify → SonarQube → Docker → Harbor → Helm deploy to OpenShift)
+    and registers the service in Backstage catalog.
+  tags:
+    - microservice
+    - azure-devops
+    - openshift
+    - recommended
+  annotations:
+    backstage.io/techdocs-ref: 'dir:.'
+
+spec:
+  owner: group:platform-team
+  type: service
+
+  # ===========================================================================
+  # Parameters — wizard steps shown in the UI
+  # ===========================================================================
+  parameters:
+    # ── Step 1: Service identity ──────────────────────────────────────────────
+    - title: Service Information
+      required:
+        - name
+        - description
+        - owner
+        - system
+      properties:
+        name:
+          title: Service Name
+          type: string
+          description: >
+            Unique identifier (lowercase alphanumeric + hyphens).
+            Used as: repo name, OpenShift namespace, image name.
+          pattern: '^[a-z][a-z0-9-]{1,48}[a-z0-9]$'
+          ui:autofocus: true
+          ui:help: 'e.g. payment-service, user-auth, invoice-api'
+
+        title:
+          title: Human-readable Title
+          type: string
+          description: Display name shown in Backstage catalog
+
+        description:
+          title: Description
+          type: string
+          description: Short description of what this service does
+          ui:widget: textarea
+          ui:options:
+            rows: 3
+
+        owner:
+          title: Owner Team
+          type: string
+          description: Team responsible for this service
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+
+        system:
+          title: System
+          type: string
+          description: Backstage System this service belongs to
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: System
+
+        lifecycle:
+          title: Lifecycle
+          type: string
+          default: development
+          enum:
+            - development
+            - staging
+            - production
+          enumNames:
+            - Development
+            - Staging
+            - Production
+
+        language:
+          title: Primary Language
+          type: string
+          default: java
+          enum:
+            - java
+            - python
+            - nodejs
+            - go
+            - dotnet
+          enumNames:
+            - Java
+            - Python
+            - Node.js
+            - Go
+            - .NET
+
+    # ── Step 2: Azure DevOps ──────────────────────────────────────────────────
+    - title: Azure DevOps Repository & Pipeline
+      required:
+        - azureDevOpsProject
+      properties:
+        azureDevOpsOrg:
+          title: Azure DevOps Organization
+          type: string
+          default: 'YOUR_ORG_NAME'
+          description: Organization name (e.g. YOUR_ORG_NAME)
+
+        azureDevOpsProject:
+          title: Azure DevOps Project
+          type: string
+          description: Project within the organization
+
+        defaultBranch:
+          title: Default Branch
+          type: string
+          default: main
+          enum:
+            - main
+            - master
+
+        repoDescription:
+          title: Repository Description
+          type: string
+          description: Short description for the Azure DevOps repository
+
+    # ── Step 3: OpenShift / Harbor ────────────────────────────────────────────
+    - title: OpenShift Namespace & Harbor Registry
+      required:
+        - harborProject
+      properties:
+        namespace:
+          title: OpenShift Namespace
+          type: string
+          description: >
+            Target namespace for deployment.
+            Defaults to the service name — change for multi-tenancy.
+          ui:help: 'Leave blank to use the service name as namespace'
+
+        harborProject:
+          title: Harbor Project
+          type: string
+          default: 'k8s-orchestration'
+          description: Harbor project that will host the container image
+
+        harborUrl:
+          title: Harbor Registry URL
+          type: string
+          default: 'YOUR_HARBOR_HOST'
+          description: Harbor instance hostname (no https://)
+
+  # ===========================================================================
+  # Steps — executed server-side by the Scaffolder backend
+  # ===========================================================================
+  steps:
+    # ── 1. Render skeleton ────────────────────────────────────────────────────
+    - id: fetch-skeleton
+      name: Render project skeleton
+      action: fetch:template
+      input:
+        url: './skeleton'
+        values:
+          name: ${{ parameters.name }}
+          title: ${{ parameters.title | default(parameters.name) }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          system: ${{ parameters.system }}
+          lifecycle: ${{ parameters.lifecycle }}
+          language: ${{ parameters.language }}
+          azureDevOpsOrg: ${{ parameters.azureDevOpsOrg | default('YOUR_ORG_NAME') }}
+          azureDevOpsProject: ${{ parameters.azureDevOpsProject }}
+          defaultBranch: ${{ parameters.defaultBranch | default('main') }}
+          namespace: ${{ parameters.namespace | default(parameters.name) }}
+          harborProject: ${{ parameters.harborProject }}
+          harborUrl: ${{ parameters.harborUrl | default('YOUR_HARBOR_HOST') }}
+    # ── 2. Publish to Azure DevOps ────────────────────────────────────────────
+    - id: publish-azure
+      name: Create Azure DevOps repository and push skeleton
+      action: publish:azure
+      input:
+        # repoUrl format: dev.azure.com?repo=<name>&organization=<org>&project=<project>
+        repoUrl: >-
+          dev.azure.com?repo=${{ parameters.name }}&organization=${{ parameters.azureDevOpsOrg | default('YOUR_ORG_NAME') }}&project=${{ parameters.azureDevOpsProject }}
+        description: ${{ parameters.description }}
+        defaultBranch: ${{ parameters.defaultBranch | default('main') }}
+        gitCommitMessage: 'feat: initial scaffold via Backstage'
+        gitAuthorName: 'Backstage Scaffolder'
+        gitAuthorEmail: 'backstage@YOUR_ORG_DOMAIN'
+
+    # ── 3. Register in Backstage catalog ─────────────────────────────────────
+    - id: register-catalog
+      name: Register component in Software Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish-azure'].output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
+
+  # ===========================================================================
+  # Output — links shown in the "Created!" screen
+  # ===========================================================================
+  output:
+    links:
+      - title: 'Azure DevOps Repository'
+        url: ${{ steps['publish-azure'].output.remoteUrl }}
+        icon: repo
+      - title: 'Open in Backstage Catalog'
+        icon: catalog
+        entityRef: ${{ steps['register-catalog'].output.entityRef }}
+      - title: 'Harbor Registry'
+        url: 'https://${{ parameters.harborUrl | default("YOUR_HARBOR_HOST") }}/harbor/projects'
+        icon: dashboard
+
+    text:
+      - title: 'Next steps'
+        content: |
+          ### Your microservice has been scaffolded!
+
+          **1. Set up Azure DevOps Pipeline**
+          The `azure-pipelines.yml` in your repo defines the CI stages:
+          Build → Test → Fortify → SonarQube → Docker Build → Image Scan → Push to Harbor.
+          In Azure DevOps: Pipelines → New Pipeline → Azure Repos Git → Select your repo.
+
+          **2. Create the OpenShift Namespace**
+          ```bash
+          oc new-project ${{ parameters.namespace | default(parameters.name) }}
+          ```
+
+          **3. Harbor Image Pull Secret**
+          ```bash
+          oc create secret docker-registry harbor-pull-secret \
+            --docker-server=YOUR_HARBOR_HOST \
+            --docker-username=$HARBOR_USERNAME \
+            --docker-password=$HARBOR_PASSWORD \
+            -n ${{ parameters.namespace | default(parameters.name) }}
+          oc secrets link default harbor-pull-secret --for=pull \
+            -n ${{ parameters.namespace | default(parameters.name) }}
+          ```
+
+          **4. Trigger first deployment**
+          Push to `main` → Azure DevOps CI/CD pipeline çalışır → image Harbor'a push edilir → Helm ile OpenShift'e deploy edilir.

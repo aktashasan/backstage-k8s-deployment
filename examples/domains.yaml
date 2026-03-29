@@ -1,0 +1,77 @@
+# Domain Definitions
+# High-level business domains
+
+---
+# Platform Domain
+apiVersion: backstage.io/v1alpha1
+kind: Domain
+metadata:
+  name: platform
+  title: Platform Engineering
+  description: Platform infrastructure, tools, and developer experience
+  tags:
+    - platform
+    - infrastructure
+    - devops
+spec:
+  owner: platform-team
+
+---
+# Infrastructure Domain
+apiVersion: backstage.io/v1alpha1
+kind: Domain
+metadata:
+  name: infrastructure
+  title: Infrastructure & Operations
+  description: Kubernetes clusters, networking, and infrastructure management
+  tags:
+    - infrastructure
+    - kubernetes
+    - networking
+spec:
+  owner: platform-team
+
+---
+# Applications Domain
+apiVersion: backstage.io/v1alpha1
+kind: Domain
+metadata:
+  name: applications
+  title: Business Applications
+  description: Customer-facing and internal business applications
+  tags:
+    - applications
+    - business
+    - microservices
+spec:
+  owner: development-team
+
+---
+# Security Domain
+apiVersion: backstage.io/v1alpha1
+kind: Domain
+metadata:
+  name: security
+  title: Security & Compliance
+  description: Security tools, scanning, and compliance management
+  tags:
+    - security
+    - compliance
+    - scanning
+spec:
+  owner: security-team
+
+---
+# Data Domain
+apiVersion: backstage.io/v1alpha1
+kind: Domain
+metadata:
+  name: data
+  title: Data & Analytics
+  description: Data platform, analytics, and data engineering
+  tags:
+    - data
+    - analytics
+    - data-engineering
+spec:
+  owner: data-team

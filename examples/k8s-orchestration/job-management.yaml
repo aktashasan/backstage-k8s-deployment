@@ -1,0 +1,31 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: job-management
+  title: Job Management
+  description: Background job and task management service
+  tags:
+    - microservice
+    - jobs
+    - tasks
+    - background-processing
+  annotations:
+    backstage.io/kubernetes-id: crystal-job-management
+    backstage.io/kubernetes-namespace: crystal
+    backstage.io/kubernetes-label-selector: 'app=job-management'
+    backstage.io/techdocs-ref: dir:.
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '3000'
+  links:
+    - url: https://YOUR_GITLAB_NAMESPACE/job-management
+      title: Source Code
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: backend-team
+  system: microservices-platform
+  providesApis:
+    - api:default/job-api
+  dependsOn:
+    - resource:postgresql-shared

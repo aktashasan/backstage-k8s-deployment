@@ -1,0 +1,33 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: cluster-mgmt
+  title: Cluster Management
+  description: Kubernetes cluster management service for adding, removing, and managing Kubernetes clusters via Helm charts
+  tags:
+    - microservice
+    - go
+    - kubernetes
+    - helm
+    - cluster-management
+    - management
+  annotations:
+    backstage.io/kubernetes-id: crystal-k8s-cluster-mgmt
+    backstage.io/kubernetes-namespace: crystal
+    backstage.io/kubernetes-label-selector: 'app=k8s-cluster-mgmt'
+    backstage.io/techdocs-ref: dir:.
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '8080'
+  links:
+    - url: https://YOUR_GITLAB_NAMESPACE/k8s-cluster-mgmt
+      title: Source Code
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: kubernetes-infrastructure
+  providesApis:
+    - api:default/cluster-mgmt-api
+  dependsOn:
+    - resource:postgresql-shared

@@ -1,0 +1,133 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: ${{ values.component_id }}-prod
+
+# Base
+bases:
+  - ../../base
+
+# Namespace
+namespace: ${{ values.namespace }}
+
+# Common labels
+commonLabels:
+  environment: production
+  tier: production
+
+# Common annotations
+commonAnnotations:
+  deployment.kubernetes.io/environment: production
+
+# Images - override with production tag
+images:
+  - name: harbor.company.com/${{ values.harborProject }}/${{ values.component_id }}
+    newTag: latest
+
+# Patches
+patches:
+  # Production replicas
+  - target:
+      kind: Deployment
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: ${{ values.replicas }}
+
+  # Production resources (full allocation)
+  - target:
+      kind: Deployment
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+
+  # Production environment variables
+  - target:
+      kind: Deployment
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: LOG_LEVEL
+          value: WARN
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: ENABLE_PRODUCTION_FEATURES
+          value: "true"
+
+  # Production readiness/liveness probes (stricter)
+  - target:
+      kind: Deployment
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/failureThreshold
+        value: 5
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/failureThreshold
+        value: 5
+
+{%- if values.enableIngress %}
+  # Production ingress host
+  - target:
+      kind: Ingress
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: ${{ values.component_id }}.company.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: ${{ values.component_id }}.company.com
+{%- endif %}
+
+{%- if values.enableHPA %}
+  # Production HPA (higher min replicas)
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: ${{ values.replicas }}
+      - op: replace
+        path: /spec/maxReplicas
+        value: 20
+{%- endif %}
+
+  # Production PDB (stricter)
+  - target:
+      kind: PodDisruptionBudget
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: 2
+
+# ConfigMap for production config
+configMapGenerator:
+  - name: ${{ values.component_id }}-prod-config
+    literals:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARN
+      - CACHE_ENABLED=true
+      - METRICS_ENABLED=true
+      - TRACING_ENABLED=true
+
+# Note: Production secrets should be managed externally (e.g., Azure Key Vault, HashiCorp Vault)
+# secretGenerator:
+#   - name: ${{ values.component_id }}-prod-secrets
+#     files:
+#       - secrets/api-key

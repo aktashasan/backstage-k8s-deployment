@@ -1,0 +1,4 @@
+site_name: Backstage Internal Developer Platform
+docs_dir: docs
+plugins:
+  - techdocs-core

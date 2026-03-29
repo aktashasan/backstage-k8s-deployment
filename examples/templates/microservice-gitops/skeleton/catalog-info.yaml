@@ -1,0 +1,32 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.title }}
+  description: ${{ values.description }}
+  annotations:
+    dev.azure.com/project-repo: '${{ values.azureDevOpsOrg }}/${{ values.azureDevOpsProject }}/${{ values.name }}'
+    dev.azure.com/build-definition: '${{ values.name }}-ci'
+    dev.azure.com/pull-requests: '${{ values.azureDevOpsOrg }}/${{ values.azureDevOpsProject }}/${{ values.name }}'
+    argocd/app-name: '${{ values.name }}'
+    backstage.io/kubernetes-id: '${{ values.name }}'
+    backstage.io/kubernetes-namespace: '${{ values.namespace }}'
+    backstage.io/kubernetes-cluster: 'openshift-production'
+    harbor.io/repository: '${{ values.harborUrl }}/${{ values.harborProject }}/${{ values.name }}'
+    backstage.io/techdocs-ref: 'dir:.'
+  tags:
+    - ${{ values.language }}
+    - microservice
+    - openshift
+  links:
+    - url: 'https://${{ values.harborUrl }}/harbor/projects'
+      title: 'Harbor Registry'
+      icon: dashboard
+    - url: 'https://dev.azure.com/${{ values.azureDevOpsOrg }}/${{ values.azureDevOpsProject }}/_git/${{ values.name }}'
+      title: 'Azure DevOps Repository'
+      icon: repo
+spec:
+  type: service
+  lifecycle: ${{ values.lifecycle }}
+  owner: 'group:${{ values.owner }}'
+  system: '${{ values.system }}'

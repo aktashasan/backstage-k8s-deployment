@@ -1,0 +1,45 @@
+# Build and Deploy to OpenShift Iterate
+# main branch'e her push: image build -> GitLab Registry push -> oc apply
+#
+# GitLab CI/CD değişkenleri (Settings > CI/CD > Variables, masked):
+#   OPENSHIFT_ITERATE_URL   - OpenShift API (örn. https://api.iterate.openshift.example.com:6443)
+#   OPENSHIFT_ITERATE_TOKEN - ServiceAccount veya kullanıcı token
+
+stages:
+  - build
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
+build:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" -t "$CI_REGISTRY_IMAGE:latest" .
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE:latest"
+  only:
+    - main
+
+deploy:
+  stage: deploy
+  image: debian:bullseye-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl ca-certificates
+    - curl -sL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz | tar xz -C /usr/local/bin
+    - oc version --client
+    - oc login --server="$OPENSHIFT_ITERATE_URL" --token="$OPENSHIFT_ITERATE_TOKEN" --insecure-skip-tls-verify=true
+    - sed -i "s|IMAGE_PLACEHOLDER|$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA|g" openshift/deployment.yaml
+  script:
+    - oc apply -f openshift/namespace.yaml
+    - oc apply -f openshift/deployment.yaml -f openshift/service.yaml -f openshift/route.yaml
+  only:
+    - main
+  needs:
+    - build

@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${{ values.component_id }}-config
+  labels:
+    app: ${{ values.component_id }}
+data:
+  application.properties: |
+    # Application Configuration
+    app.name=${{ values.component_id }}
+    app.version=latest
+    
+    # Server Configuration
+    server.port=${{ values.containerPort }}
+    
+    {%- if values.enableObservability %}
+    # Observability
+    management.endpoints.web.exposure.include=health,metrics,prometheus
+    management.metrics.export.prometheus.enabled=true
+    {%- endif %}
+    
+    {%- if values.database != 'none' %}
+    # Database Configuration
+    database.type=${{ values.database }}
+    {%- endif %}

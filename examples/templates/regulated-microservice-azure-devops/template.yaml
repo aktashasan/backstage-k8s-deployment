@@ -1,0 +1,147 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: regulated-microservice-azure-devops
+  title: Regulated Microservice (Azure DevOps)
+  description: Bankacılık/regülasyon ortamları için standartlaştırılmış microservice + Azure DevOps CI/CD + Kubernetes iskeleti
+  tags:
+    - microservice
+    - azure-devops
+    - regulated
+    - banking
+spec:
+  owner: platform-team
+  type: service
+
+  parameters:
+    - title: Servis Bilgileri
+      required:
+        - component_id
+        - owner
+        - description
+      properties:
+        component_id:
+          title: Servis Adı
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          description: Kebab-case, repo ve k8s adı olarak kullanılacak
+        description:
+          title: Açıklama
+          type: string
+        owner:
+          title: Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: [Group, User]
+        system:
+          title: System
+          type: string
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: [System]
+
+    - title: Teknoloji ve Kalite Kapıları
+      required:
+        - language
+        - framework
+      properties:
+        language:
+          title: Dil
+          type: string
+          enum: [java, nodejs]
+          enumNames:
+            - Java (Spring Boot)
+            - Node.js (NestJS)
+          default: java
+        framework:
+          title: Framework
+          type: string
+          enum: [spring-boot, nestjs]
+          enumNames:
+            - Spring Boot
+            - NestJS
+          default: spring-boot
+        enableSonarQube:
+          title: SonarQube Quality Gate
+          type: boolean
+          default: true
+        enableSast:
+          title: SAST (Security Scan) Placeholder
+          type: boolean
+          default: true
+        enableSbom:
+          title: SBOM Üretimi Placeholder
+          type: boolean
+          default: true
+
+    - title: Azure DevOps ve Pipeline
+      required:
+        - azureDevOpsOrg
+        - azureDevOpsProject
+      properties:
+        azureDevOpsOrg:
+          title: Azure DevOps Organization
+          type: string
+        azureDevOpsProject:
+          title: Azure DevOps Project
+          type: string
+        repoName:
+          title: Repository Adı
+          type: string
+          description: Boş bırakılırsa component_id kullanılır
+        defaultBranch:
+          title: Varsayılan Branch
+          type: string
+          default: dev
+
+  steps:
+    - id: fetch-base
+      name: Base Template'i Getir
+      action: fetch:template
+      input:
+        # Mevcut kapsamlı template'in skeleton'unu tekrar kullanıyoruz
+        url: ../microservice-azure-devops/skeleton
+        values:
+          component_id: ${{ parameters.component_id }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          system: ${{ parameters.system }}
+          language: ${{ parameters.language }}
+          framework: ${{ parameters.framework }}
+          # Aşağıdaki flag'ler pipeline içinde sadece placeholder stage’ler olarak kullanılacak
+          enableSonarQube: ${{ parameters.enableSonarQube }}
+          enableFortify: ${{ parameters.enableSast }}
+
+    - id: publish-azure-devops
+      name: Azure DevOps Repo Oluştur
+      action: publish:azure
+      input:
+        repoUrl: 'dev.azure.com?organization=${{ parameters.azureDevOpsOrg }}&project=${{ parameters.azureDevOpsProject }}&repo=${{ parameters.repoName || parameters.component_id }}'
+        description: ${{ parameters.description }}
+        defaultBranch: ${{ parameters.defaultBranch }}
+        sourcePath: .
+        gitAuthorName: Backstage
+        gitAuthorEmail: backstage@example.com
+
+    - id: register
+      name: Catalog'a Kaydet
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish-azure-devops'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+  output:
+    links:
+      - title: Azure DevOps Repository
+        url: ${{ steps['publish-azure-devops'].output.remoteUrl }}
+        icon: code
+      - title: Azure DevOps Pipelines
+        url: 'https://dev.azure.com/${{ parameters.azureDevOpsOrg }}/${{ parameters.azureDevOpsProject }}/_build'
+        icon: dashboard
+      - title: Catalog Component
+        entityRef: ${{ steps['register'].output.entityRef }}
+        icon: catalog
+

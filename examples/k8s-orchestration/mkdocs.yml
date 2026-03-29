@@ -1,0 +1,17 @@
+site_name: k8s-orchestration Microservices
+site_description: Documentation for k8s-orchestration management microservices
+site_author: Ankasoft Platform Team
+
+nav:
+  - Home: index.md
+  - CAS Kubernetes Management: cas-k8s-mgmt.md
+  - Cloud Account Management: cloud-account-mgmt.md
+  - vSphere Management: vsphere-mgmt.md
+  - MongoDB Management: mongodb-mgmt.md
+  - MinIO Management: minio-mgmt.md
+  - PostgreSQL Management: postgresql-mgmt.md
+  - MySQL Management: mysql-mgmt.md
+  - Cluster Management: cluster-mgmt.md
+
+plugins:
+  - techdocs-core

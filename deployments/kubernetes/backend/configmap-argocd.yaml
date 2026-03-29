@@ -1,0 +1,64 @@
+# =============================================================================
+# ConfigMap: backstage-config-argocd
+#
+# Mounts as /app/app-config.argocd.yaml inside the container.
+# Passed as the third --config flag so it layers on top of the base configs.
+#
+# All secrets are injected at runtime via env vars from backstage-secrets.
+# This ConfigMap contains only non-sensitive structural configuration.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backstage-config-argocd
+  namespace: backstage
+  labels:
+    app.kubernetes.io/name: backstage
+    app.kubernetes.io/component: config
+data:
+  app-config.argocd.yaml: |
+    # ── Azure DevOps Plugin (on-prem server) ──────────────────────────────────
+    azureDevOps:
+      host: ${AZURE_DEVOPS_HOST:-YOUR_AZURE_DEVOPS_HOST}
+      credentials:
+        - personalAccessToken: ${AZURE_DEVOPS_TOKEN}
+      organization: ${AZURE_DEVOPS_ORG:-DefaultCollection}
+
+    # ── Kubernetes / OpenShift ─────────────────────────────────────────────────
+    kubernetes:
+      serviceLocatorMethod:
+        type: 'multiTenant'
+      clusterLocatorMethods:
+        - type: 'config'
+          clusters:
+            - name: openshift-production
+              url: ${OPENSHIFT_PROD_URL}
+              authProvider: 'serviceAccount'
+              serviceAccountToken: ${OPENSHIFT_PROD_TOKEN}
+              skipTLSVerify: true
+              dashboardUrl: ${OPENSHIFT_PROD_CONSOLE_URL}
+              dashboardApp: 'openshift'
+      customResources:
+        - group: 'route.openshift.io'
+          apiVersion: 'v1'
+          plural: 'routes'
+        - group: 'apps.openshift.io'
+          apiVersion: 'v1'
+          plural: 'deploymentconfigs'
+
+    # ── TechDocs — şimdilik local, Azure Blob hazır olunca aktif edilecek ─────
+    # Azure Storage hazır olduğunda:
+    #   1. secret'a AZURE_STORAGE_ACCOUNT_NAME, AZURE_STORAGE_ACCOUNT_KEY, TECHDOCS_AZURE_CONTAINER_NAME ekle
+    #   2. Aşağıdaki local bloğunu azureBlobStorage ile değiştir
+    techdocs:
+      builder: 'local'
+      generator:
+        runIn: 'local'
+      publisher:
+        type: 'local'
+        local:
+          publishDirectory: /tmp/techdocs-static
+
+    # Catalog locations burada tanımlanmıyor — base app-config.yaml'daki
+    # locations ezilmesin diye. microservice-gitops template image yeniden
+    # build edildiğinde base configmap'e eklenecek.

@@ -1,0 +1,52 @@
+# =============================================================================
+# ArgoCD / OpenShift GitOps Operator Installation
+#
+# Red Hat's OpenShift GitOps Operator ships ArgoCD as a first-class OCP
+# operator. It installs into openshift-operators (all-namespaces mode) and
+# creates a default ArgoCD instance in openshift-gitops namespace.
+#
+# Apply order:
+#   1. oc apply -f 01-operator-subscription.yaml
+#   2. Wait for operator pod: oc get pods -n openshift-operators -w
+#   3. oc apply -f 02-argocd-instance.yaml
+# =============================================================================
+
+# Dedicated namespace for our custom ArgoCD instance
+# (separate from the default openshift-gitops instance)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    argocd.argoproj.io/managed-by: argocd
+    app.kubernetes.io/managed-by: platform-team
+---
+# OperatorGroup scoping the GitOps operator to argocd namespace
+# (Remove this if using the cluster-wide openshift-gitops subscription instead)
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: argocd-operatorgroup
+  namespace: argocd
+spec:
+  targetNamespaces:
+    - argocd
+---
+# OpenShift GitOps Operator subscription (cluster-wide, from Red Hat catalog)
+# This installs into openshift-operators and manages all ArgoCD instances.
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-gitops-operator
+  namespace: openshift-operators
+  labels:
+    app.kubernetes.io/name: openshift-gitops
+    app.kubernetes.io/managed-by: platform-team
+spec:
+  channel: latest
+  installPlanApproval: Automatic
+  name: openshift-gitops-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  # Pin to a specific version if you need reproducible installs:
+  # startingCSV: openshift-gitops-operator.v1.12.0

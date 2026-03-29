@@ -1,0 +1,62 @@
+# app-config.local.yaml
+# Local development configuration (git'e eklenmez!)
+# Bu dosyayı kopyalayıp app-config.local.yaml olarak kaydedin ve değerleri doldurun
+
+# Kubernetes Cluster Tokens (Local Development)
+kubernetes:
+  clusterLocatorMethods:
+    - type: 'config'
+      clusters:
+        # Dev Cluster - Local token buraya
+        - url: https://api.dev-cluster.company.com
+          name: dev-cluster
+          authProvider: 'serviceAccount'
+          serviceAccountToken: 'your-dev-cluster-token-here'
+          skipTLSVerify: true  # Local development için
+          
+        # Test Cluster
+        - url: https://api.test-cluster.company.com
+          name: test-cluster
+          authProvider: 'serviceAccount'
+          serviceAccountToken: 'your-test-cluster-token-here'
+          skipTLSVerify: true
+          
+        # Prod Cluster
+        - url: https://api.prod-cluster.company.com
+          name: prod-cluster
+          authProvider: 'serviceAccount'
+          serviceAccountToken: 'your-prod-cluster-token-here'
+          skipTLSVerify: false  # Production için false
+
+# Azure DevOps (Local Development)
+integrations:
+  azure:
+    - host: dev.azure.com
+      token: 'your-azure-devops-pat-token-here'
+
+# Security Scanning (Local Development - Optional)
+security:
+  fortify:
+    url: https://fortify.company.com
+    apiKey: 'your-fortify-api-key-here'
+    
+  sonarqube:
+    url: https://sonarqube.company.com
+    token: 'your-sonarqube-token-here'
+    
+  trivy:
+    url: https://trivy.company.com
+    apiKey: 'your-trivy-api-key-here'
+
+# Harbor Registry (Local Development)
+harbor:
+  url: https://harbor.company.com
+  username: 'your-harbor-username'
+  password: 'your-harbor-password'
+
+# Notifications (Local Development - Optional)
+notifications:
+  slack:
+    webhookUrl: 'your-slack-webhook-url'
+  teams:
+    webhookUrl: 'your-teams-webhook-url'

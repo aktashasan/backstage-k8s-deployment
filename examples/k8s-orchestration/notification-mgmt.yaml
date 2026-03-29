@@ -1,0 +1,32 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: notification-mgmt
+  title: Notification Management
+  description: Notification service for email, SMS, and push notifications
+  tags:
+    - microservice
+    - notifications
+    - email
+    - sms
+    - push
+  annotations:
+    backstage.io/kubernetes-id: crystal-notification-mgmt
+    backstage.io/kubernetes-namespace: crystal
+    backstage.io/kubernetes-label-selector: 'app=notification-mgmt'
+    backstage.io/techdocs-ref: dir:.
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '3000'
+  links:
+    - url: https://YOUR_GITLAB_NAMESPACE/notification-mgmt
+      title: Source Code
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: backend-team
+  system: microservices-platform
+  providesApis:
+    - api:default/notification-api
+  dependsOn:
+    - resource:postgresql-shared

@@ -1,0 +1,925 @@
+# API Definitions
+# Microservice'ler arası API tanımları
+
+---
+# User API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: user-api
+  title: User Management API
+  description: RESTful API for user authentication and profile management
+  tags:
+    - rest
+    - authentication
+    - users
+  links:
+    - url: https://YOUR_API_HOST/users/swagger
+      title: Swagger UI
+      icon: docs
+spec:
+  type: openapi
+  lifecycle: production
+  owner: backend-team
+  system: microservices-platform
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: User Management API
+      version: 1.0.0
+      description: API for user operations
+    servers:
+      - url: https://YOUR_API_HOST/users
+        description: Production
+    paths:
+      /users:
+        get:
+          summary: List users
+          tags: [Users]
+          responses:
+            '200':
+              description: Successful response
+        post:
+          summary: Create user
+          tags: [Users]
+          responses:
+            '201':
+              description: User created
+      /users/{id}:
+        get:
+          summary: Get user by ID
+          tags: [Users]
+          parameters:
+            - name: id
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Successful response
+      /auth/login:
+        post:
+          summary: User login
+          tags: [Authentication]
+          responses:
+            '200':
+              description: Login successful
+
+---
+# Order API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: order-api
+  title: Order Management API
+  description: RESTful API for order creation and management
+  tags:
+    - rest
+    - orders
+    - e-commerce
+spec:
+  type: openapi
+  lifecycle: production
+  owner: backend-team
+  system: microservices-platform
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: Order Management API
+      version: 1.0.0
+    servers:
+      - url: https://api.company.com/orders
+    paths:
+      /orders:
+        get:
+          summary: List orders
+          responses:
+            '200':
+              description: List of orders
+        post:
+          summary: Create order
+          responses:
+            '201':
+              description: Order created
+      /orders/{id}:
+        get:
+          summary: Get order details
+          parameters:
+            - name: id
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Order details
+      /orders/{id}/status:
+        put:
+          summary: Update order status
+          responses:
+            '200':
+              description: Status updated
+
+---
+# Payment API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: payment-api
+  title: Payment Processing API
+  description: Secure payment processing API
+  tags:
+    - rest
+    - payment
+    - pci-compliant
+  annotations:
+    pci.io/compliant: 'true'
+spec:
+  type: openapi
+  lifecycle: production
+  owner: payment-team
+  system: microservices-platform
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: Payment Processing API
+      version: 1.0.0
+    servers:
+      - url: https://api.company.com/payments
+    paths:
+      /payments:
+        post:
+          summary: Process payment
+          security:
+            - bearerAuth: []
+          responses:
+            '200':
+              description: Payment successful
+      /payments/{id}:
+        get:
+          summary: Get payment status
+          responses:
+            '200':
+              description: Payment details
+      /refunds:
+        post:
+          summary: Process refund
+          responses:
+            '200':
+              description: Refund processed
+
+---
+# Notification API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: notification-api
+  title: Notification API
+  description: Multi-channel notification API (Email, SMS, Push)
+  tags:
+    - rest
+    - notifications
+    - messaging
+spec:
+  type: openapi
+  lifecycle: production
+  owner: backend-team
+  system: microservices-platform
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: Notification API
+      version: 1.0.0
+    servers:
+      - url: https://api.company.com/notifications
+    paths:
+      /notifications/email:
+        post:
+          summary: Send email notification
+          responses:
+            '202':
+              description: Email queued
+      /notifications/sms:
+        post:
+          summary: Send SMS notification
+          responses:
+            '202':
+              description: SMS queued
+      /notifications/push:
+        post:
+          summary: Send push notification
+          responses:
+            '202':
+              description: Push notification queued
+
+---
+# Inventory API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: inventory-api
+  title: Inventory Management API
+  description: Product inventory and stock management API
+  tags:
+    - rest
+    - inventory
+    - stock
+spec:
+  type: openapi
+  lifecycle: production
+  owner: backend-team
+  system: microservices-platform
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: Inventory API
+      version: 1.0.0
+    paths:
+      /products/{id}/stock:
+        get:
+          summary: Check stock level
+          responses:
+            '200':
+              description: Stock information
+      /stock/reserve:
+        post:
+          summary: Reserve stock
+          responses:
+            '200':
+              description: Stock reserved
+
+---
+# Auth API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: auth-api
+  title: Authentication & Authorization API
+  description: OAuth2/OIDC authentication service
+  tags:
+    - oauth2
+    - oidc
+    - authentication
+    - authorization
+spec:
+  type: openapi
+  lifecycle: production
+  owner: security-team
+  system: microservices-platform
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: Auth API
+      version: 1.0.0
+    paths:
+      /oauth/token:
+        post:
+          summary: Get access token
+          responses:
+            '200':
+              description: Token issued
+      /oauth/authorize:
+        get:
+          summary: Authorization endpoint
+          responses:
+            '302':
+              description: Redirect to login
+
+---
+# Mobile GraphQL API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: mobile-graphql-api
+  title: Mobile GraphQL API
+  description: GraphQL API for mobile applications
+  tags:
+    - graphql
+    - mobile
+    - bff
+spec:
+  type: graphql
+  lifecycle: production
+  owner: mobile-team
+  system: microservices-platform
+  definition: |
+    type Query {
+      user(id: ID!): User
+      orders(userId: ID!): [Order]
+      notifications(userId: ID!): [Notification]
+    }
+    
+    type Mutation {
+      createOrder(input: OrderInput!): Order
+      updateProfile(input: ProfileInput!): User
+      markNotificationRead(id: ID!): Notification
+    }
+    
+    type User {
+      id: ID!
+      email: String!
+      name: String!
+      orders: [Order]
+    }
+    
+    type Order {
+      id: ID!
+      status: OrderStatus!
+      items: [OrderItem]
+      total: Float!
+    }
+    
+    enum OrderStatus {
+      PENDING
+      CONFIRMED
+      SHIPPED
+      DELIVERED
+    }
+
+---
+# Metrics API (Prometheus)
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: prometheus-metrics-api
+  title: Prometheus Metrics API
+  description: Prometheus metrics exposition format
+  tags:
+    - prometheus
+    - metrics
+    - monitoring
+spec:
+  type: prometheus
+  lifecycle: production
+  owner: platform-team
+  system: observability
+  definition: |
+    # HELP http_requests_total Total HTTP requests
+    # TYPE http_requests_total counter
+    http_requests_total{method="GET",endpoint="/api/users"} 1234
+    
+    # HELP http_request_duration_seconds HTTP request duration
+    # TYPE http_request_duration_seconds histogram
+    http_request_duration_seconds_bucket{le="0.1"} 100
+
+---
+# vSphere API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: vsphere-api
+  title: vSphere Management API
+  description: GraphQL API for vSphere infrastructure management
+  tags:
+    - graphql
+    - vsphere
+    - vmware
+    - infrastructure
+spec:
+  type: graphql
+  lifecycle: production
+  owner: platform-team
+  system: kubernetes-infrastructure
+  definition: |
+    type Query {
+      virtualMachines: [VirtualMachine]
+      virtualMachine(id: ID!): VirtualMachine
+      templates: [Template]
+      storagePolicies: [StoragePolicy]
+    }
+    
+    type Mutation {
+      createVirtualMachine(input: VMCreateInput!): VirtualMachine
+      updateVirtualMachine(id: ID!, input: VMUpdateInput!): VirtualMachine
+      deleteVirtualMachine(id: ID!): Boolean
+    }
+    
+    type VirtualMachine {
+      id: ID!
+      name: String!
+      status: VMStatus!
+      cpu: Int!
+      memory: Int!
+      disks: [Disk]
+      nics: [NetworkInterface]
+    }
+    
+    enum VMStatus {
+      POWERED_ON
+      POWERED_OFF
+      SUSPENDED
+    }
+
+---
+# CAS Kubernetes API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: cas-k8s-api
+  title: CAS Kubernetes Management API
+  description: GraphQL API for CAS Kubernetes cluster management
+  tags:
+    - graphql
+    - kubernetes
+    - cas
+spec:
+  type: graphql
+  lifecycle: production
+  owner: platform-team
+  system: kubernetes-infrastructure
+  definition: |
+    type Query {
+      clusters: [Cluster]
+      cluster(id: ID!): Cluster
+    }
+    
+    type Cluster {
+      id: ID!
+      name: String!
+      status: ClusterStatus!
+    }
+    
+    enum ClusterStatus {
+      ACTIVE
+      INACTIVE
+      ERROR
+    }
+
+---
+# Cloud Account API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: cloud-account-api
+  title: Cloud Account Management API
+  description: GraphQL API for managing AWS, Azure, GCP cloud accounts
+  tags:
+    - graphql
+    - cloud
+    - aws
+    - azure
+    - gcp
+spec:
+  type: graphql
+  lifecycle: production
+  owner: platform-team
+  system: microservices-platform
+  definition: |
+    type Query {
+      cloudAccounts: [CloudAccount]
+      cloudAccount(id: ID!): CloudAccount
+    }
+    
+    type CloudAccount {
+      id: ID!
+      provider: CloudProvider!
+      name: String!
+      status: AccountStatus!
+    }
+    
+    enum CloudProvider {
+      AWS
+      AZURE
+      GCP
+    }
+    
+    enum AccountStatus {
+      ACTIVE
+      INACTIVE
+      ERROR
+    }
+
+---
+# MongoDB Management API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: mongodb-mgmt-api
+  title: MongoDB Management API
+  description: GraphQL API for MongoDB instance management
+  tags:
+    - graphql
+    - mongodb
+    - database
+spec:
+  type: graphql
+  lifecycle: production
+  owner: platform-team
+  system: microservices-platform
+  definition: |
+    type Query {
+      mongodbInstances: [MongoDBInstance]
+      mongodbInstance(id: ID!): MongoDBInstance
+    }
+    
+    type MongoDBInstance {
+      id: ID!
+      name: String!
+      version: String!
+      status: InstanceStatus!
+    }
+    
+    enum InstanceStatus {
+      RUNNING
+      STOPPED
+      ERROR
+    }
+
+---
+# MinIO Management API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: minio-mgmt-api
+  title: MinIO Management API
+  description: GraphQL API for MinIO object storage management
+  tags:
+    - graphql
+    - minio
+    - storage
+    - s3
+spec:
+  type: graphql
+  lifecycle: production
+  owner: platform-team
+  system: microservices-platform
+  definition: |
+    type Query {
+      minioInstances: [MinIOInstance]
+      minioInstance(id: ID!): MinIOInstance
+      buckets(instanceId: ID!): [Bucket]
+    }
+    
+    type MinIOInstance {
+      id: ID!
+      name: String!
+      endpoint: String!
+      status: InstanceStatus!
+    }
+    
+    type Bucket {
+      id: ID!
+      name: String!
+      size: Int!
+    }
+
+---
+# PostgreSQL Management API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: postgresql-mgmt-api
+  title: PostgreSQL Management API
+  description: GraphQL API for PostgreSQL instance management
+  tags:
+    - graphql
+    - postgresql
+    - database
+spec:
+  type: graphql
+  lifecycle: production
+  owner: platform-team
+  system: microservices-platform
+  definition: |
+    type Query {
+      postgresqlInstances: [PostgreSQLInstance]
+      postgresqlInstance(id: ID!): PostgreSQLInstance
+    }
+    
+    type PostgreSQLInstance {
+      id: ID!
+      name: String!
+      version: String!
+      status: InstanceStatus!
+    }
+
+---
+# MySQL Management API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: mysql-mgmt-api
+  title: MySQL Management API
+  description: GraphQL API for MySQL instance management
+  tags:
+    - graphql
+    - mysql
+    - database
+spec:
+  type: graphql
+  lifecycle: production
+  owner: platform-team
+  system: microservices-platform
+  definition: |
+    type Query {
+      mysqlInstances: [MySQLInstance]
+      mysqlInstance(id: ID!): MySQLInstance
+    }
+    
+    type MySQLInstance {
+      id: ID!
+      name: String!
+      version: String!
+      status: InstanceStatus!
+    }
+
+---
+# Cluster Management API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: cluster-mgmt-api
+  title: Cluster Management API
+  description: REST API for Kubernetes cluster management via Helm
+  tags:
+    - rest
+    - kubernetes
+    - helm
+    - cluster-management
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-team
+  system: kubernetes-infrastructure
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: Cluster Management API
+      version: 1.0.0
+    servers:
+      - url: https://api.company.com/cluster-mgmt
+    paths:
+      /clusters:
+        get:
+          summary: List all clusters
+          responses:
+            '200':
+              description: List of clusters
+        post:
+          summary: Add new cluster
+          responses:
+            '201':
+              description: Cluster added
+      /cluster/{id}:
+        delete:
+          summary: Delete cluster
+          responses:
+            '200':
+              description: Cluster deleted
+      /cluster/test:
+        post:
+          summary: Test cluster connection
+          responses:
+            '200':
+              description: Connection test result
+
+---
+# Job Management API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: job-api
+  title: Job Management API
+  description: REST API for background job and task management
+  tags:
+    - rest
+    - jobs
+    - tasks
+    - background-processing
+spec:
+  type: openapi
+  lifecycle: production
+  owner: backend-team
+  system: microservices-platform
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: Job Management API
+      version: 1.0.0
+    servers:
+      - url: https://YOUR_API_HOST/jobs
+    paths:
+      /jobs:
+        get:
+          summary: List all jobs
+          responses:
+            '200':
+              description: List of jobs
+        post:
+          summary: Create new job
+          responses:
+            '201':
+              description: Job created
+      /jobs/{id}:
+        get:
+          summary: Get job by ID
+          parameters:
+            - name: id
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Job details
+        delete:
+          summary: Cancel job
+          responses:
+            '200':
+              description: Job cancelled
+
+---
+# Quota Management API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: quota-api
+  title: Quota Management API
+  description: REST API for resource quota and limit management
+  tags:
+    - rest
+    - quota
+    - limits
+    - resource-management
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-team
+  system: microservices-platform
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: Quota Management API
+      version: 1.0.0
+    servers:
+      - url: https://YOUR_API_HOST/quota
+    paths:
+      /quotas:
+        get:
+          summary: List all quotas
+          responses:
+            '200':
+              description: List of quotas
+        post:
+          summary: Create quota
+          responses:
+            '201':
+              description: Quota created
+      /quotas/{id}:
+        get:
+          summary: Get quota by ID
+          parameters:
+            - name: id
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Quota details
+
+---
+# Infrastructure Management API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: infrastructure-api
+  title: Infrastructure Management API
+  description: REST API for infrastructure provisioning and management
+  tags:
+    - rest
+    - infrastructure
+    - provisioning
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-team
+  system: kubernetes-infrastructure
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: Infrastructure Management API
+      version: 1.0.0
+    servers:
+      - url: https://YOUR_API_HOST/infrastructure
+    paths:
+      /infrastructure:
+        get:
+          summary: List infrastructure resources
+          responses:
+            '200':
+              description: List of infrastructure
+        post:
+          summary: Provision infrastructure
+          responses:
+            '201':
+              description: Infrastructure provisioned
+      /infrastructure/{id}:
+        get:
+          summary: Get infrastructure by ID
+          parameters:
+            - name: id
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Infrastructure details
+
+---
+# Audit Management API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: audit-api
+  title: Audit Management API
+  description: REST API for audit logging and management
+  tags:
+    - rest
+    - audit
+    - logging
+    - security
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-team
+  system: microservices-platform
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: Audit Management API
+      version: 1.0.0
+    servers:
+      - url: https://YOUR_API_HOST/audit
+    paths:
+      /audit-logs:
+        get:
+          summary: Query audit logs
+          parameters:
+            - name: startDate
+              in: query
+              schema:
+                type: string
+            - name: endDate
+              in: query
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Audit logs
+        post:
+          summary: Create audit log entry
+          responses:
+            '201':
+              description: Audit log created
+
+---
+# Integration Management API
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: integration-api
+  title: Integration Management API
+  description: REST API for service integration and API gateway management
+  tags:
+    - rest
+    - integration
+    - api-gateway
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-team
+  system: microservices-platform
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: Integration Management API
+      version: 1.0.0
+    servers:
+      - url: https://YOUR_API_HOST/integration
+    paths:
+      /integrations:
+        get:
+          summary: List all integrations
+          responses:
+            '200':
+              description: List of integrations
+        post:
+          summary: Create integration
+          responses:
+            '201':
+              description: Integration created
+      /integrations/{id}:
+        get:
+          summary: Get integration by ID
+          parameters:
+            - name: id
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            '200':
+              description: Integration details

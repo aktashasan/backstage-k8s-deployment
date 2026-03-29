@@ -1,0 +1,194 @@
+# System Definitions - Organizasyonel Yapı
+# Mimarinizdeki ana sistemler
+
+---
+# Azure DevOps CI/CD System
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: azure-devops-cicd
+  title: Azure DevOps CI/CD Platform
+  description: Enterprise CI/CD platform with Azure DevOps Pipelines
+  tags:
+    - cicd
+    - azure-devops
+    - platform
+  links:
+    - url: https://dev.azure.com
+      title: Azure DevOps
+      icon: dashboard
+spec:
+  owner: platform-team
+  domain: platform
+
+---
+# Artifact Management System
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: artifact-management
+  title: Artifact Management System
+  description: Nexus & Harbor for artifact and container image management
+  tags:
+    - nexus
+    - harbor
+    - registry
+    - artifacts
+  links:
+    - url: https://nexus.company.com
+      title: Nexus Repository
+      icon: storage
+    - url: https://harbor.company.com
+      title: Harbor Registry
+      icon: docker
+spec:
+  owner: platform-team
+  domain: platform
+
+---
+# Kubernetes Infrastructure System
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: kubernetes-infrastructure
+  title: Kubernetes Multi-Cluster Infrastructure
+  description: Dev, Test, and Production Kubernetes clusters
+  tags:
+    - kubernetes
+    - infrastructure
+    - openshift
+    - multi-cluster
+  links:
+    - url: https://rancher.company.com
+      title: Rancher
+      icon: dashboard
+  annotations:
+    backstage.io/kubernetes-cluster-count: '3'
+spec:
+  owner: platform-team
+  domain: infrastructure
+
+---
+# GitOps System
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: gitops-platform
+  title: GitOps Deployment Platform
+  description: ArgoCD/FluxCD for continuous deployment
+  tags:
+    - gitops
+    - argocd
+    - fluxcd
+    - continuous-deployment
+  links:
+    - url: https://argocd.company.com
+      title: ArgoCD
+      icon: sync
+spec:
+  owner: platform-team
+  domain: platform
+
+---
+# Observability System
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: observability
+  title: Observability Platform
+  description: Prometheus, Grafana, Jaeger for monitoring and tracing
+  tags:
+    - monitoring
+    - observability
+    - prometheus
+    - grafana
+    - jaeger
+  links:
+    - url: https://grafana.company.com
+      title: Grafana
+      icon: dashboard
+    - url: https://prometheus.company.com
+      title: Prometheus
+      icon: chart
+spec:
+  owner: platform-team
+  domain: platform
+
+---
+# Microservices Application System
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: microservices-platform
+  title: Microservices Platform
+  description: Core microservices for business applications
+  tags:
+    - microservices
+    - applications
+    - business
+spec:
+  owner: development-team
+  domain: applications
+
+---
+# API Gateway System
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: api-gateway
+  title: API Gateway & Management
+  description: Kong/NGINX for API gateway and management
+  tags:
+    - api-gateway
+    - kong
+    - nginx
+  links:
+    - url: https://api.company.com
+      title: API Portal
+      icon: web
+spec:
+  owner: platform-team
+  domain: platform
+
+---
+# Security & Compliance System
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: security-compliance
+  title: Security & Compliance Platform
+  description: SonarQube, Trivy, Fortify for security scanning
+  tags:
+    - security
+    - compliance
+    - scanning
+    - sonarqube
+    - trivy
+  links:
+    - url: https://sonarqube.company.com
+      title: SonarQube
+      icon: security
+spec:
+  owner: security-team
+  domain: security
+
+---
+# Developer Platform System
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: developer-platform
+  title: Internal Developer Platform (IDP)
+  description: Backstage IDP with Tilt for developer experience
+  tags:
+    - idp
+    - backstage
+    - tilt
+    - developer-experience
+  links:
+    - url: https://backstage.company.com
+      title: Backstage
+      icon: dashboard
+spec:
+  owner: platform-team
+  domain: platform

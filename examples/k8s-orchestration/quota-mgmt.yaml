@@ -1,0 +1,31 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: quota-mgmt
+  title: Quota Management
+  description: Resource quota and limit management service
+  tags:
+    - microservice
+    - quota
+    - limits
+    - resource-management
+  annotations:
+    backstage.io/kubernetes-id: crystal-quota-mgmt
+    backstage.io/kubernetes-namespace: crystal
+    backstage.io/kubernetes-label-selector: 'app=quota-mgmt'
+    backstage.io/techdocs-ref: dir:.
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '3000'
+  links:
+    - url: https://YOUR_GITLAB_NAMESPACE/quota-mgmt
+      title: Source Code
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: microservices-platform
+  providesApis:
+    - api:default/quota-api
+  dependsOn:
+    - resource:postgresql-shared

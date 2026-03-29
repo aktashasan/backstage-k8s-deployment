@@ -1,0 +1,100 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: ${{ values.component_id }}-test
+
+# Base
+bases:
+  - ../../base
+
+# Namespace
+namespace: ${{ values.namespace }}-test
+
+# Name suffix
+nameSuffix: -test
+
+# Common labels
+commonLabels:
+  environment: test
+  tier: testing
+
+# Common annotations
+commonAnnotations:
+  deployment.kubernetes.io/environment: test
+
+# Images - override with test tag
+images:
+  - name: harbor.company.com/${{ values.harborProject }}/${{ values.component_id }}
+    newTag: test-latest
+
+# Patches
+patches:
+  # Test environment replicas
+  - target:
+      kind: Deployment
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+
+  # Test resources (slightly higher than dev)
+  - target:
+      kind: Deployment
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 300m
+            memory: 384Mi
+
+  # Test environment variables
+  - target:
+      kind: Deployment
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: LOG_LEVEL
+          value: INFO
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: ENABLE_TESTING_FEATURES
+          value: "true"
+
+{%- if values.enableIngress %}
+  # Update ingress host for test
+  - target:
+      kind: Ingress
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: ${{ values.component_id }}-test.company.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: ${{ values.component_id }}-test.company.com
+{%- endif %}
+
+# ConfigMap for test-specific config
+configMapGenerator:
+  - name: ${{ values.component_id }}-test-config
+    literals:
+      - ENVIRONMENT=test
+      - LOG_LEVEL=INFO
+      - CACHE_ENABLED=true
+      - TEST_MODE=true
+
+# Secret generator
+secretGenerator:
+  - name: ${{ values.component_id }}-test-secrets
+    literals:
+      - API_KEY=test-api-key-placeholder

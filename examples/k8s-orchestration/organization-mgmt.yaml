@@ -1,0 +1,31 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: organization-mgmt
+  title: Organization Management
+  description: Organization and tenant management service
+  tags:
+    - microservice
+    - organization
+    - tenant
+    - management
+  annotations:
+    backstage.io/kubernetes-id: crystal-organization-mgmt
+    backstage.io/kubernetes-namespace: crystal
+    backstage.io/kubernetes-label-selector: 'app=organization-mgmt'
+    backstage.io/techdocs-ref: dir:.
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '3000'
+  links:
+    - url: https://YOUR_GITLAB_NAMESPACE/organization-mgmt
+      title: Source Code
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: backend-team
+  system: microservices-platform
+  providesApis:
+    - api:default/user-api
+  dependsOn:
+    - resource:postgresql-shared

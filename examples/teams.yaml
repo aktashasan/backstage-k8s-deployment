@@ -1,0 +1,227 @@
+# Team & User Definitions
+# Organizasyonel yapı - Takımlar ve Kullanıcılar
+
+---
+# Platform Team
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: platform-team
+  title: Platform Engineering Team
+  description: Responsible for platform infrastructure, IDP, CI/CD, and developer tools
+  tags:
+    - platform
+    - devops
+    - sre
+spec:
+  type: team
+  profile:
+    displayName: Platform Engineering Team
+    email: platform-team@company.com
+    picture: https://avatars.githubusercontent.com/u/platform-team
+  children: []
+
+---
+# Development Team
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: development-team
+  title: Development Team
+  description: Application development team for microservices
+  tags:
+    - development
+    - backend
+    - frontend
+spec:
+  type: team
+  profile:
+    displayName: Development Team
+    email: dev-team@company.com
+  children:
+    - backend-team
+    - frontend-team
+    - mobile-team
+
+---
+# Backend Team
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: backend-team
+  title: Backend Engineering Team
+  description: Backend microservices development
+  tags:
+    - backend
+    - microservices
+    - api
+spec:
+  type: team
+  parent: development-team
+  profile:
+    displayName: Backend Team
+    email: backend-team@company.com
+  children: []
+
+---
+# Frontend Team
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: frontend-team
+  title: Frontend Engineering Team
+  description: Web and frontend application development
+  tags:
+    - frontend
+    - web
+    - ui
+spec:
+  type: team
+  parent: development-team
+  profile:
+    displayName: Frontend Team
+    email: frontend-team@company.com
+  children: []
+
+---
+# Mobile Team
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: mobile-team
+  title: Mobile Engineering Team
+  description: Mobile application development
+  tags:
+    - mobile
+    - ios
+    - android
+spec:
+  type: team
+  parent: development-team
+  profile:
+    displayName: Mobile Team
+    email: mobile-team@company.com
+  children: []
+
+---
+# Payment Team
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: payment-team
+  title: Payment Services Team
+  description: Payment processing and financial services
+  tags:
+    - payment
+    - fintech
+    - pci
+spec:
+  type: team
+  profile:
+    displayName: Payment Team
+    email: payment-team@company.com
+  children: []
+
+---
+# Security Team
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: security-team
+  title: Security & Compliance Team
+  description: Application security, vulnerability management, compliance
+  tags:
+    - security
+    - compliance
+    - infosec
+spec:
+  type: team
+  profile:
+    displayName: Security Team
+    email: security-team@company.com
+  children: []
+
+---
+# Data Team
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: data-team
+  title: Data Engineering Team
+  description: Data platform and analytics
+  tags:
+    - data
+    - analytics
+    - data-engineering
+spec:
+  type: team
+  profile:
+    displayName: Data Team
+    email: data-team@company.com
+  children: []
+
+---
+# Example User: Platform Engineer
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: platform-engineer
+  title: Platform Engineer
+spec:
+  profile:
+    displayName: Ali Yılmaz
+    email: ali.yilmaz@company.com
+    picture: https://avatars.githubusercontent.com/u/ali-yilmaz
+  memberOf: [platform-team]
+
+---
+# Example User: Backend Developer
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: backend-developer
+  title: Backend Developer
+spec:
+  profile:
+    displayName: Ayşe Demir
+    email: ayse.demir@company.com
+  memberOf: [backend-team, development-team]
+
+---
+# Example User: Frontend Developer
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: frontend-developer
+  title: Frontend Developer
+spec:
+  profile:
+    displayName: Mehmet Kaya
+    email: mehmet.kaya@company.com
+  memberOf: [frontend-team, development-team]
+
+---
+# Example User: Security Engineer
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: security-engineer
+  title: Security Engineer
+spec:
+  profile:
+    displayName: Zeynep Arslan
+    email: zeynep.arslan@company.com
+  memberOf: [security-team]
+
+---
+# Example User: Tech Lead
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: tech-lead
+  title: Technical Lead
+spec:
+  profile:
+    displayName: Can Öztürk
+    email: can.ozturk@company.com
+  memberOf: [backend-team, development-team]

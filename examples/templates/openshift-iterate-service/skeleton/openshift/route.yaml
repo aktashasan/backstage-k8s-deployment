@@ -1,0 +1,14 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ${{ values.name }}
+  namespace: ${{ values.namespace }}
+  labels:
+    app: ${{ values.name }}
+spec:
+  to:
+    kind: Service
+    name: ${{ values.name }}
+  port:
+    targetPort: http
+  # host bos birakilirsa OpenShift otomatik hostname atar

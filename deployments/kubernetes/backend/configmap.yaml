@@ -1,0 +1,240 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backstage-config
+  namespace: backstage
+data:
+  app-config.yaml: |
+    app:
+      title: Scaffolded Backstage App
+      # Public URL users hit in browser (must match Ingress host)
+      baseUrl: ${APP_BASE_URL:-http://YOUR_BACKSTAGE_DOMAIN}
+
+    backend:
+      # Public URL of the backend (no /api here to avoid double-prefix)
+      baseUrl: ${BACKEND_BASE_URL:-http://YOUR_BACKSTAGE_DOMAIN}
+      listen:
+        port: 7007
+      auth:
+        keys:
+          - secret: ${BACKEND_SECRET}
+      cors:
+        # Allow browser calls from both http/https on the same host
+        origin: ["${APP_BASE_URL:-http://YOUR_BACKSTAGE_DOMAIN}"]
+        methods: [GET, HEAD, PATCH, POST, PUT, DELETE, OPTIONS]
+        credentials: true
+        allowedHeaders: ['Content-Type', 'Authorization']
+      # Auth disabled for demo - no authentication required
+      database:
+        client: pg
+        connection:
+          host: ${POSTGRES_HOST:-postgres}
+          port: ${POSTGRES_PORT:-5432}
+          user: ${POSTGRES_USER}
+          password: ${POSTGRES_PASSWORD}
+          database: ${POSTGRES_DB:-backstage}
+
+    integrations:
+      azure:
+        - host: ${AZURE_DEVOPS_HOST:-YOUR_AZURE_DEVOPS_HOST}
+          credentials:
+            - personalAccessToken: ${AZURE_DEVOPS_TOKEN}
+      # GitHub ve GitLab bu deployment'da kullanılmıyor.
+      # Boş token ile bırakılırsa Backstage startup'ta crash yapıyor.
+      # Aktif etmek için token secret'a doldurulup aşağıdaki blok açılabilir:
+      # github:
+      #   - host: github.com
+      #     token: ${GITHUB_TOKEN}
+      # gitlab:
+      #   - host: gitlab.com
+      #     token: ${GITLAB_TOKEN}
+
+    harbor:
+      url: ${HARBOR_URL:-https://YOUR_HARBOR_HOST}
+      username: ${HARBOR_USERNAME}
+      password: ${HARBOR_PASSWORD}
+
+    catalog:
+      import:
+        entityFilename: catalog-info.yaml
+        pullRequestBranchName: backstage-integration
+      rules:
+        - allow: [Component, System, API, Resource, Location, Domain, Template]
+      locations:
+        - type: file
+          target: /app/examples/entities.yaml
+        - type: file
+          target: /app/examples/template/template.yaml
+          rules:
+            - allow: [Template]
+        - type: file
+          target: /app/examples/templates/microservice-azure-devops/template.yaml
+          rules:
+            - allow: [Template]
+        - type: file
+          target: /app/examples/templates/regulated-microservice-azure-devops/template.yaml
+          rules:
+            - allow: [Template]
+        - type: file
+          target: /app/examples/templates/openshift-iterate-service/template.yaml
+          rules:
+            - allow: [Template]
+        - type: file
+          target: /app/examples/systems.yaml
+          rules:
+            - allow: [System]
+        - type: file
+          target: /app/examples/resources.yaml
+          rules:
+            - allow: [Resource]
+        - type: file
+          target: /app/examples/apis.yaml
+          rules:
+            - allow: [API]
+        - type: file
+          target: /app/examples/domains.yaml
+          rules:
+            - allow: [Domain]
+        - type: file
+          target: /app/examples/org.yaml
+          rules:
+            - allow: [User, Group]
+        - type: file
+          target: /app/examples/teams.yaml
+          rules:
+            - allow: [User, Group]
+        - type: file
+          target: /app/examples/k8s-orchestration/cloud-account-mgmt.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/cluster-mgmt.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/headlamp-proxy.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/kubeapps-proxy.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/audit-mgmt.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/authn.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/authz.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/customer-mgmt.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/infrastructure-mgmt.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/integration-mgmt.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/job-management.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/notification-mgmt.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/organization-mgmt.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/permission-mgmt.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/quota-mgmt.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/role-mgmt.yaml
+          rules:
+            - allow: [Component]
+        - type: file
+          target: /app/examples/k8s-orchestration/user-group-mgmt.yaml
+          rules:
+            - allow: [Component]
+
+    kubernetes:
+      serviceLocatorMethod:
+        type: 'multiTenant'
+      clusterLocatorMethods:
+        - type: 'config'
+          clusters: []
+            # Kubernetes cluster configurations
+            # Uncomment and configure clusters you want to use
+            # Make sure the corresponding environment variables (URL, TOKEN) are set in deployment.yaml
+            
+            # Example: Dev Cluster
+            # - url: ${DEV_CLUSTER_URL}
+            #   name: dev-cluster
+            #   authProvider: 'serviceAccount'
+            #   serviceAccountToken: ${DEV_CLUSTER_TOKEN}
+            #   skipTLSVerify: true
+            
+            # Example: OpenShift Iterate Cluster
+            # Uncomment when OPENSHIFT_ITERATE_TOKEN is set in backstage-secrets
+            # - url: ${OPENSHIFT_ITERATE_URL}
+            #   name: iterate
+            #   authProvider: 'serviceAccount'
+            #   serviceAccountToken: ${OPENSHIFT_ITERATE_TOKEN}
+            #   skipTLSVerify: true
+            #   dashboardUrl: ${OPENSHIFT_ITERATE_DASHBOARD}
+            #   dashboardApp: 'openshift'
+
+    auth:
+      providers:
+        guest:
+          dangerouslyAllowSignInWithoutUserInCatalog: true
+          dangerouslyAllowOutsideDevelopment: true
+          signIn:
+            resolver:
+              type: static
+              params:
+                userRef: user:default/guest
+      environment: production
+
+    permission:
+      enabled: false
+
+    scaffolder: {}
+
+    techdocs:
+      builder: 'local'
+      generator:
+        runIn: 'local'
+      publisher:
+        type: 'local'
+        local:
+          publishDirectory: /tmp/techdocs-static
+  app-config.production.yaml: |
+    # Production overrides for deployed environment
+    auth:
+      providers:
+        guest:
+          dangerouslyAllowSignInWithoutUserInCatalog: true
+          dangerouslyAllowOutsideDevelopment: true
+          signIn:
+            resolver:
+              type: static
+              params:
+                userRef: user:default/guest
+
+    # Leave catalog empty here so main app-config.yaml locations remain effective

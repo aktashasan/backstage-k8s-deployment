@@ -1,0 +1,254 @@
+# =============================================================================
+# Azure DevOps CI/CD Pipeline
+# Service: ${{ values.name }}
+#
+# Stages:
+#   CI: build → test → fortify → sonarqube → docker-build → image-scan → push
+#   CD: triggered on main branch after CI passes
+#
+# Required variable groups (Library → Variable Groups in Azure DevOps):
+#   - harbor-credentials     : HARBOR_URL, HARBOR_USERNAME, HARBOR_PASSWORD
+#   - sonarqube-credentials  : SONAR_HOST_URL, SONAR_TOKEN
+#   - fortify-credentials    : FORTIFY_SSC_URL, FORTIFY_TOKEN, FORTIFY_APP_VERSION
+#   - argocd-credentials     : ARGOCD_SERVER, ARGOCD_TOKEN (for manual CD trigger)
+# =============================================================================
+trigger:
+  branches:
+    include:
+      - main
+      - 'release/*'
+  paths:
+    exclude:
+      - '*.md'
+      - 'docs/**'
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  - group: harbor-credentials
+  - group: sonarqube-credentials
+  - group: fortify-credentials
+  - name: IMAGE_NAME
+    value: '$(HARBOR_URL)/${{ values.harborProject }}/${{ values.name }}'
+  - name: IMAGE_TAG
+    value: '$(Build.BuildId)'
+  - name: FULL_IMAGE
+    value: '$(IMAGE_NAME):$(IMAGE_TAG)'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+  # ===========================================================================
+  # Stage 1: Build & Unit Tests
+  # ===========================================================================
+  - stage: Build
+    displayName: 'Build & Test'
+    jobs:
+      - job: BuildAndTest
+        displayName: 'Compile and run unit tests'
+        steps:
+          - checkout: self
+            fetchDepth: 0  # Full history needed for SonarQube blame
+
+          # Language-specific build steps — uncomment the right block
+          # ── Java (Maven) ──
+          # - task: Maven@4
+          #   inputs:
+          #     mavenPomFile: 'pom.xml'
+          #     goals: 'verify'
+          #     publishJUnitResults: true
+          #     testResultsFiles: '**/surefire-reports/TEST-*.xml'
+          #     javaHomeOption: 'JDKVersion'
+          #     jdkVersionOption: '1.17'
+          #     sonarQubeRunAnalysis: false
+
+          # ── Node.js ──
+          # - task: NodeTool@0
+          #   inputs:
+          #     versionSpec: '20.x'
+          # - script: npm ci && npm test -- --ci --coverage
+          #   displayName: 'npm test'
+
+          # ── Python ──
+          # - task: UsePythonVersion@0
+          #   inputs:
+          #     versionSpec: '3.12'
+          # - script: pip install -r requirements.txt && pytest --junitxml=test-results.xml
+          #   displayName: 'pytest'
+
+          - script: echo "Add your build and test steps above"
+            displayName: 'Placeholder — configure build steps'
+
+  # ===========================================================================
+  # Stage 2: Static Code Analysis (SonarQube)
+  # ===========================================================================
+  - stage: CodeQuality
+    displayName: 'Code Quality — SonarQube'
+    dependsOn: Build
+    jobs:
+      - job: SonarQube
+        displayName: 'SonarQube scan'
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - task: SonarQubePrepare@6
+            inputs:
+              SonarQube: 'SonarQube'  # Service connection name in Azure DevOps
+              scannerMode: 'CLI'
+              configMode: 'manual'
+              cliProjectKey: '${{ values.name }}'
+              cliProjectName: '${{ values.title }}'
+              extraProperties: |
+                sonar.host.url=$(SONAR_HOST_URL)
+                sonar.token=$(SONAR_TOKEN)
+                sonar.qualitygate.wait=true
+
+          - task: SonarQubeAnalyze@6
+            displayName: 'Run SonarQube analysis'
+
+          - task: SonarQubePublish@6
+            displayName: 'Publish Quality Gate result'
+            inputs:
+              pollingTimeoutSec: '300'
+
+  # ===========================================================================
+  # Stage 3: Security — Fortify SAST
+  # ===========================================================================
+  - stage: SecurityScan
+    displayName: 'Security — Fortify SAST'
+    dependsOn: Build
+    jobs:
+      - job: Fortify
+        displayName: 'Fortify static analysis'
+        steps:
+          - checkout: self
+
+          - task: FortifySCA@8
+            displayName: 'Fortify SCA scan'
+            inputs:
+              applicationType: 'other'
+              fortifyProjects: '.'
+              sourceVersion: '17'
+              uploadToSSC: true
+              sscUrl: '$(FORTIFY_SSC_URL)'
+              sscCiToken: '$(FORTIFY_TOKEN)'
+              applicationName: '${{ values.name }}'
+              applicationVersion: '$(Build.BuildId)'
+              # Fail build if critical/high findings exist:
+              # failBuildOnFoundIssues: true
+              # minimumSeverity: 'High'
+
+  # ===========================================================================
+  # Stage 4: Docker Build & Image Scan
+  # ===========================================================================
+  - stage: ContainerBuild
+    displayName: 'Container Build & Scan'
+    dependsOn:
+      - CodeQuality
+      - SecurityScan
+    condition: and(succeeded('CodeQuality'), succeeded('SecurityScan'))
+    jobs:
+      - job: DockerBuildAndScan
+        displayName: 'Build image, scan, push to Harbor'
+        steps:
+          - checkout: self
+
+          # Docker login to Harbor
+          - task: Docker@2
+            displayName: 'Login to Harbor'
+            inputs:
+              command: login
+              containerRegistry: 'harbor-service-connection'  # Service connection in Azure DevOps
+
+          # Build image
+          - task: Docker@2
+            displayName: 'Build Docker image'
+            inputs:
+              command: build
+              dockerfile: 'Dockerfile'
+              repository: '$(IMAGE_NAME)'
+              tags: |
+                $(IMAGE_TAG)
+                latest
+              arguments: '--build-arg BUILD_ID=$(Build.BuildId) --build-arg BUILD_DATE=$(Build.QueueTime)'
+
+          # Trivy image scan (open-source, no license needed)
+          - script: |
+              docker run --rm \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                aquasec/trivy:latest image \
+                --exit-code 1 \
+                --severity HIGH,CRITICAL \
+                --no-progress \
+                $(FULL_IMAGE)
+            displayName: 'Trivy image vulnerability scan'
+            continueOnError: false
+
+          # Push to Harbor only if scan passed
+          - task: Docker@2
+            displayName: 'Push image to Harbor'
+            inputs:
+              command: push
+              repository: '$(IMAGE_NAME)'
+              tags: |
+                $(IMAGE_TAG)
+                latest
+
+          # Publish image digest as pipeline artifact for CD traceability
+          - script: |
+              docker inspect --format='{{index .RepoDigests 0}}' $(FULL_IMAGE) > $(Build.ArtifactStagingDirectory)/image-digest.txt
+              echo "IMAGE=$(FULL_IMAGE)" >> $(Build.ArtifactStagingDirectory)/image-meta.env
+              echo "DIGEST=$(cat $(Build.ArtifactStagingDirectory)/image-digest.txt)" >> $(Build.ArtifactStagingDirectory)/image-meta.env
+            displayName: 'Capture image metadata'
+
+          - publish: '$(Build.ArtifactStagingDirectory)'
+            artifact: image-metadata
+            displayName: 'Publish image metadata artifact'
+
+  # ===========================================================================
+  # Stage 5: CD — Update Helm values and let ArgoCD sync
+  # GitOps approach: commit updated image tag to the gitops repo.
+  # ArgoCD watches the repo and auto-syncs on change.
+  # ===========================================================================
+  - stage: Deploy
+    displayName: 'CD — Update GitOps manifest'
+    dependsOn: ContainerBuild
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: UpdateManifest
+        displayName: 'Bump image tag in Helm values'
+        environment: '${{ values.namespace }}'  # Creates an Azure DevOps Environment for approvals
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: image-metadata
+
+                - script: |
+                    IMAGE_TAG=$(grep '^IMAGE=' $(Pipeline.Workspace)/image-metadata/image-meta.env | cut -d= -f2 | cut -d: -f2)
+                    echo "Deploying image tag: $IMAGE_TAG"
+
+                    # Update helm/values.yaml image tag in the same repo
+                    sed -i "s|tag:.*|tag: \"${IMAGE_TAG}\"|g" helm/values.yaml
+
+                    git config user.email "backstage@YOUR_ORG_DOMAIN"
+                    git config user.name "Azure DevOps Pipeline"
+                    git add helm/values.yaml
+                    git commit -m "cd: bump ${{ values.name }} image to ${IMAGE_TAG} [skip ci]" || echo "No changes to commit"
+                    git push origin HEAD:main
+                  displayName: 'Update Helm values.yaml with new image tag'
+
+                # ArgoCD will auto-sync after the commit above.
+                # Optionally force-sync immediately:
+                # - script: |
+                #     argocd app sync ${{ values.name }} \
+                #       --server $(ARGOCD_SERVER) \
+                #       --auth-token $(ARGOCD_TOKEN) \
+                #       --insecure
+                #   displayName: 'Trigger ArgoCD sync (optional)'

@@ -1,0 +1,116 @@
+# =============================================================================
+# app-config.platform.yaml  (eskiden app-config.argocd.yaml)
+# Azure DevOps Plugin + TechDocs Azure Blob + OpenShift cluster additions
+#
+# Usage: pass as additional --config flag in your Backstage startup command:
+#   node packages/backend/dist/index.cjs.js \
+#     --config /app/app-config.yaml \
+#     --config /app/app-config.production.yaml \
+#     --config /app/app-config.argocd.yaml
+#
+# Required environment variables (add to backstage-secrets):
+#   OPENSHIFT_PROD_URL, OPENSHIFT_PROD_TOKEN, OPENSHIFT_PROD_CA_DATA
+#   AZURE_DEVOPS_ORG
+#   AZURE_STORAGE_ACCOUNT_NAME, AZURE_STORAGE_ACCOUNT_KEY
+#   TECHDOCS_AZURE_CONTAINER_NAME
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. Azure DevOps Plugin
+#    Required backend plugin: @backstage/plugin-azure-devops-backend
+#    Required frontend plugin: @backstage/plugin-azure-devops
+# -----------------------------------------------------------------------------
+azureDevOps:
+  host: dev.azure.com
+  token: ${AZURE_DEVOPS_TOKEN}
+  organization: ${AZURE_DEVOPS_ORG}
+
+# -----------------------------------------------------------------------------
+# 2. Kubernetes / OpenShift - Full cluster definition replacing base config
+#    NOTE: Backstage merges arrays by replacement. This block replaces the
+#    entire kubernetes section from app-config.yaml. Keep all clusters here.
+# -----------------------------------------------------------------------------
+kubernetes:
+  serviceLocatorMethod:
+    type: 'multiTenant'
+  clusterLocatorMethods:
+    - type: 'config'
+      clusters:
+        # -----------------------------------------------------------------
+        # OpenShift Production cluster (primary - where Backstage runs)
+        # Auth: long-lived ServiceAccount token (see rbac/ manifests)
+        # To get the token: oc get secret backstage-sa-token -n backstage \
+        #   -o jsonpath='{.data.token}' | base64 -d
+        # -----------------------------------------------------------------
+        - name: openshift-production
+          url: ${OPENSHIFT_PROD_URL}
+          authProvider: 'serviceAccount'
+          serviceAccountToken: ${OPENSHIFT_PROD_TOKEN}
+          skipTLSVerify: false
+          caData: ${OPENSHIFT_PROD_CA_DATA}
+          dashboardUrl: ${OPENSHIFT_PROD_CONSOLE_URL}
+          dashboardApp: 'openshift'
+
+        # -----------------------------------------------------------------
+        # OpenShift Iterate (dev/test) - existing cluster
+        # -----------------------------------------------------------------
+        - name: iterate
+          url: ${OPENSHIFT_ITERATE_URL}
+          authProvider: 'serviceAccount'
+          serviceAccountToken: ${OPENSHIFT_ITERATE_TOKEN}
+          skipTLSVerify: true
+          dashboardUrl: ${OPENSHIFT_ITERATE_DASHBOARD}
+          dashboardApp: 'openshift'
+
+        # -----------------------------------------------------------------
+        # Azure AKS Dev - existing cluster
+        # -----------------------------------------------------------------
+        - name: dev-cluster
+          url: ${DEV_CLUSTER_URL}
+          authProvider: 'serviceAccount'
+          serviceAccountToken: ${DEV_CLUSTER_TOKEN}
+          skipTLSVerify: true
+          dashboardUrl: ${DEV_CLUSTER_DASHBOARD}
+          dashboardApp: 'azure'
+
+  # Custom resource types to surface in Backstage entity pages.
+  # This full list replaces any customResources from app-config.yaml.
+  customResources:
+    # OpenShift Routes (replaces Ingress in OCP)
+    - group: 'route.openshift.io'
+      apiVersion: 'v1'
+      plural: 'routes'
+    # OpenShift DeploymentConfigs (legacy OCP workloads)
+    - group: 'apps.openshift.io'
+      apiVersion: 'v1'
+      plural: 'deploymentconfigs'
+
+# -----------------------------------------------------------------------------
+# 3. TechDocs - Switch from local to Azure Blob Storage (production)
+#    Container must exist in Azure Storage before deploying.
+#    Generate docs externally (e.g. in Azure DevOps pipeline) and publish.
+#    Required: @backstage/plugin-techdocs-backend + @azure/storage-blob
+# -----------------------------------------------------------------------------
+techdocs:
+  builder: 'external'
+  generator:
+    runIn: 'docker'
+    dockerImage: 'spotify/techdocs:v1.2.5'
+    pullImage: false
+  publisher:
+    type: 'azureBlobStorage'
+    azureBlobStorage:
+      containerName: ${TECHDOCS_AZURE_CONTAINER_NAME}
+      credentials:
+        accountName: ${AZURE_STORAGE_ACCOUNT_NAME}
+        accountKey: ${AZURE_STORAGE_ACCOUNT_KEY}
+
+# -----------------------------------------------------------------------------
+# 4. Catalog additions - register microservice template
+# -----------------------------------------------------------------------------
+catalog:
+  locations:
+    - type: file
+      target: /app/examples/templates/microservice-gitops/template.yaml
+      rules:
+        - allow: [Template]

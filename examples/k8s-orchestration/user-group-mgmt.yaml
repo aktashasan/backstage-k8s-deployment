@@ -1,0 +1,31 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: user-group-mgmt
+  title: User Group Management
+  description: User group and team management service
+  tags:
+    - microservice
+    - users
+    - groups
+    - teams
+  annotations:
+    backstage.io/kubernetes-id: crystal-user-group-mgmt
+    backstage.io/kubernetes-namespace: crystal
+    backstage.io/kubernetes-label-selector: 'app=user-group-mgmt'
+    backstage.io/techdocs-ref: dir:.
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '3000'
+  links:
+    - url: https://YOUR_GITLAB_NAMESPACE/user-group-mgmt
+      title: Source Code
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: backend-team
+  system: microservices-platform
+  providesApis:
+    - api:default/user-api
+  dependsOn:
+    - resource:postgresql-shared

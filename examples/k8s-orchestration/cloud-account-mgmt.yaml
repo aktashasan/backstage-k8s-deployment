@@ -1,0 +1,35 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: cloud-account-mgmt
+  title: Cloud Account Management
+  description: Cloud account management service for managing AWS, Azure, GCP cloud accounts
+  tags:
+    - microservice
+    - nodejs
+    - nestjs
+    - cloud
+    - management
+    - aws
+    - azure
+    - gcp
+  annotations:
+    backstage.io/kubernetes-id: crystal-cloud-account-mgmt
+    backstage.io/kubernetes-namespace: crystal
+    backstage.io/kubernetes-label-selector: 'app=cloud-account-mgmt'
+    backstage.io/techdocs-ref: dir:.
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '3000'
+  links:
+    - url: https://YOUR_GITLAB_NAMESPACE/cloud-account-mgmt
+      title: Source Code
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: microservices-platform
+  providesApis:
+    - api:default/cloud-account-api
+  dependsOn:
+    - resource:postgresql-shared

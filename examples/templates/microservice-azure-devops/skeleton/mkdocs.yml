@@ -1,0 +1,8 @@
+site_name: ${{ values.component_id }} Docs
+site_description: Service documentation generated from template
+nav:
+  - Overview: index.md
+  - Architecture: architecture.md
+  - Runbook: runbook.md
+plugins:
+  - techdocs-core

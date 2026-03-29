@@ -1,0 +1,30 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: headlamp-proxy
+  title: Headlamp Proxy
+  description: Proxy service for Headlamp Kubernetes dashboard access
+  tags:
+    - microservice
+    - proxy
+    - kubernetes
+    - dashboard
+    - headlamp
+  annotations:
+    backstage.io/kubernetes-id: crystal-headlamp-proxy
+    backstage.io/kubernetes-namespace: crystal
+    backstage.io/kubernetes-label-selector: 'app=headlamp-proxy'
+    backstage.io/techdocs-ref: dir:.
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '8080'
+  links:
+    - url: https://YOUR_GITLAB_NAMESPACE/headlamp-proxy
+      title: Source Code
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: kubernetes-infrastructure
+  dependsOn:
+    - resource:kubernetes-dev-cluster

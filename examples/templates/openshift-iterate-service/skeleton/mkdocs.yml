@@ -1,0 +1,5 @@
+site_name: ${{ values.component_id }} Docs
+nav:
+  - Overview: index.md
+plugins:
+  - techdocs-core

@@ -1,0 +1,79 @@
+# =============================================================================
+# ClusterRole: backstage-read
+#
+# Grants the Backstage ServiceAccount read-only visibility into workloads
+# across all namespaces, including OpenShift-specific resource types.
+# The Kubernetes plugin uses these permissions to populate entity pages.
+# =============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backstage-read
+  labels:
+    app.kubernetes.io/name: backstage
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: backstage
+rules:
+  # Core workload visibility
+  - apiGroups: ['']
+    resources:
+      - pods
+      - pods/log
+      - pods/status
+      - services
+      - endpoints
+      - configmaps
+      - namespaces
+      - replicationcontrollers
+      - resourcequotas
+      - limitranges
+      - persistentvolumeclaims
+      - events
+    verbs: ['get', 'list', 'watch']
+
+  # Apps workloads (Kubernetes-native)
+  - apiGroups: ['apps']
+    resources:
+      - deployments
+      - replicasets
+      - statefulsets
+      - daemonsets
+    verbs: ['get', 'list', 'watch']
+
+  # OpenShift-specific workloads
+  - apiGroups: ['apps.openshift.io']
+    resources:
+      - deploymentconfigs
+    verbs: ['get', 'list', 'watch']
+
+  # OpenShift Routes (equivalent to Ingress in OCP)
+  - apiGroups: ['route.openshift.io']
+    resources:
+      - routes
+    verbs: ['get', 'list', 'watch']
+
+  # Batch workloads
+  - apiGroups: ['batch']
+    resources:
+      - jobs
+      - cronjobs
+    verbs: ['get', 'list', 'watch']
+
+  # Horizontal Pod Autoscalers
+  - apiGroups: ['autoscaling']
+    resources:
+      - horizontalpodautoscalers
+    verbs: ['get', 'list', 'watch']
+
+  # Pod resource metrics (used by Backstage Kubernetes plugin resource table)
+  - apiGroups: ['metrics.k8s.io']
+    resources:
+      - pods
+    verbs: ['get', 'list']
+
+  # ArgoCD Applications (to show sync status on entity pages)
+  - apiGroups: ['argoproj.io']
+    resources:
+      - applications
+      - applicationsets
+    verbs: ['get', 'list', 'watch']

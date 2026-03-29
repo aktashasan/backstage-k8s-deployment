@@ -1,0 +1,28 @@
+# OpenShift Route
+# OCP bu Route'a otomatik bir hostname atar:
+#   backstage-route-backstage.apps.<cluster-domain>
+#
+# Özel hostname kullanmak istersen:
+#   spec.host: YOUR_BACKSTAGE_DOMAIN  satırını uncomment yap
+#   ve DNS'te o domain'i OCP router IP'sine yönlendir.
+#
+# Route oluştuktan sonra hostname'i öğrenmek için:
+#   oc get route backstage-route -n backstage -o jsonpath='{.spec.host}'
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: backstage-route
+  namespace: backstage
+  labels:
+    app.kubernetes.io/name: backstage
+spec:
+  # host: YOUR_BACKSTAGE_DOMAIN  # Özel domain için uncomment yap
+  to:
+    kind: Service
+    name: backstage-frontend
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

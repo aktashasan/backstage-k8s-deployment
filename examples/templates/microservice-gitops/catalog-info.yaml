@@ -1,0 +1,91 @@
+# =============================================================================
+# catalog-info.yaml — Microservice entity template
+#
+# Copy this file to the root of every new service repository.
+# Replace all ${{ values.* }} placeholders with real values once scaffolded.
+#
+# Annotations reference:
+#   Kubernetes:   https://backstage.io/docs/features/kubernetes/configuration#surfacing-your-kubernetes-components-as-part-of-an-entity
+#   Azure DevOps: https://github.com/backstage/community-plugins/tree/main/workspaces/azure-devops
+#   ArgoCD:       https://github.com/RoadieHQ/roadie-backstage-plugins/tree/main/plugins/frontend/backstage-plugin-argo-cd
+# =============================================================================
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.title | default(values.name) }}
+  description: ${{ values.description }}
+
+  annotations:
+    # -------------------------------------------------------------------------
+    # Azure DevOps — pipeline visibility
+    # Format: <org>/<project>/<repo-name>
+    # -------------------------------------------------------------------------
+    dev.azure.com/project-repo: '${{ values.azureDevOpsOrg }}/${{ values.azureDevOpsProject }}/${{ values.name }}'
+    # Pipeline definition name (as shown in Azure DevOps UI)
+    dev.azure.com/build-definition: '${{ values.name }}-ci'
+    # Pull request visibility
+    dev.azure.com/pull-requests: '${{ values.azureDevOpsOrg }}/${{ values.azureDevOpsProject }}/${{ values.name }}'
+
+    # -------------------------------------------------------------------------
+    # ArgoCD — GitOps sync status
+    # Matches the ArgoCD Application name created by the Scaffolder template
+    # -------------------------------------------------------------------------
+    argocd/app-name: '${{ values.name }}'
+    # If running multiple ArgoCD instances, specify which one:
+    # argocd/instance-name: 'default'
+    # For multi-app (e.g. per-env ArgoCD apps), use selector:
+    # argocd/app-selector: 'backstage.io/name=${{ values.name }}'
+
+    # -------------------------------------------------------------------------
+    # Kubernetes / OpenShift — workload surface
+    # The plugin finds pods by matching this label: backstage.io/kubernetes-id
+    # Set this same label on all Deployment/DeploymentConfig resources.
+    # -------------------------------------------------------------------------
+    backstage.io/kubernetes-id: '${{ values.name }}'
+    backstage.io/kubernetes-namespace: '${{ values.namespace }}'
+    # Optional: limit to a specific cluster (matches 'name' in app-config.yaml)
+    backstage.io/kubernetes-cluster: 'openshift-production'
+
+    # -------------------------------------------------------------------------
+    # Harbor — image registry link
+    # -------------------------------------------------------------------------
+    harbor.io/repository: 'YOUR_HARBOR_HOST/${{ values.harborProject }}/${{ values.name }}'
+
+    # -------------------------------------------------------------------------
+    # TechDocs — documentation source
+    # 'dir:.' means docs/ folder is in the same repo as this catalog-info.yaml
+    # -------------------------------------------------------------------------
+    backstage.io/techdocs-ref: 'dir:.'
+
+    # -------------------------------------------------------------------------
+    # SonarQube — code quality (optional, requires SonarQube plugin)
+    # -------------------------------------------------------------------------
+    # sonarqube.org/project-key: '${{ values.name }}'
+
+  tags:
+    - ${{ values.language | default('java') }}
+    - microservice
+    - openshift
+
+  links:
+    - url: 'https://YOUR_HARBOR_HOST/${{ values.harborProject }}/${{ values.name }}'
+      title: 'Harbor Image Registry'
+      icon: dashboard
+    - url: '${ARGOCD_SERVER_URL}/applications/${{ values.name }}'
+      title: 'ArgoCD Application'
+      icon: deployment
+    - url: 'https://dev.azure.com/${{ values.azureDevOpsOrg }}/${{ values.azureDevOpsProject }}/_git/${{ values.name }}'
+      title: 'Azure DevOps Repository'
+      icon: repo
+
+spec:
+  type: service
+  lifecycle: ${{ values.lifecycle | default('development') }}
+  owner: 'group:${{ values.owner }}'
+  system: '${{ values.system }}'
+
+  # Exposed APIs (fill in once API contracts are defined)
+  providesApis: []
+  consumesApis: []
+  dependsOn: []

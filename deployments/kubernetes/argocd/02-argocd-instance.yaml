@@ -1,0 +1,222 @@
+# =============================================================================
+# ArgoCD Instance
+#
+# A custom ArgoCD instance in the `argocd` namespace, configured for OpenShift:
+#  - OpenShift OAuth SSO via Dex
+#  - Route (TLS edge termination) auto-created by the operator
+#  - Custom health checks for OpenShift Route resources
+#  - Resource tuning suitable for a medium-scale deployment
+#
+# After applying, get the ArgoCD Route:
+#   oc get route argocd-server -n argocd
+# Get the initial admin password:
+#   oc get secret argocd-cluster -n argocd -o jsonpath='{.data.admin\.password}' | base64 -d
+#
+# Create a long-lived Backstage API token in ArgoCD:
+#   argocd account generate-token --account backstage --server <ROUTE> --insecure
+#   Then store it in backstage-secrets as ARGOCD_AUTH_TOKEN
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ArgoCD
+metadata:
+  name: argocd
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd
+    app.kubernetes.io/managed-by: platform-team
+spec:
+  # ----- Server ---------------------------------------------------------------
+  server:
+    route:
+      enabled: true
+      tls:
+        termination: reencrypt
+        insecureEdgeTerminationPolicy: Redirect
+    insecure: false
+    logLevel: info
+
+  # ----- SSO via Dex + OpenShift OAuth ----------------------------------------
+  dex:
+    openShiftOAuth: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  # ----- RBAC -----------------------------------------------------------------
+  rbac:
+    defaultPolicy: 'role:readonly'
+    policy: |
+      # Cluster admins get full ArgoCD admin
+      g, system:cluster-admins, role:admin
+      # platform-team group = admin
+      g, platform-team, role:admin
+      # developers = readonly
+      g, developers, role:readonly
+      # backstage SA account = readonly (for Backstage plugin)
+      p, role:backstage, applications, get, */*, allow
+      p, role:backstage, projects, get, *, allow
+      g, backstage, role:backstage
+    scopes: '[groups]'
+
+  # ----- Accounts (for Backstage plugin token) --------------------------------
+  # Creates a dedicated 'backstage' account with apiKey capability
+  # Generate token: argocd account generate-token --account backstage
+  extraConfig:
+    accounts.backstage: apiKey
+
+  # ----- Custom health checks for OpenShift resources -------------------------
+  resourceCustomizations: |
+    route.openshift.io/Route:
+      health.lua: |
+        hs = {}
+        if obj.status ~= nil then
+          if obj.status.ingress ~= nil then
+            for _, ingress in ipairs(obj.status.ingress) do
+              if ingress.conditions ~= nil then
+                for _, condition in ipairs(ingress.conditions) do
+                  if condition.type == "Admitted" and condition.status == "True" then
+                    hs.status = "Healthy"
+                    hs.message = "Route admitted"
+                    return hs
+                  end
+                end
+              end
+            end
+          end
+        end
+        hs.status = "Progressing"
+        hs.message = "Waiting for Route admission"
+        return hs
+
+  # ----- Resource exclusions (reduce noise) -----------------------------------
+  resourceExclusions: |
+    - apiGroups:
+        - tekton.dev
+      clusters:
+        - '*'
+      kinds:
+        - TaskRun
+        - PipelineRun
+
+  # ----- HA disabled (single replica for cost efficiency) --------------------
+  ha:
+    enabled: false
+
+  # ----- Component resource tuning -------------------------------------------
+  redis:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  repo:
+    resources:
+      requests:
+        cpu: 256m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+  applicationSet:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # ----- Application Controller -----------------------------------------------
+  controller:
+    processors:
+      operation: 10
+      status: 20
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+
+---
+# =============================================================================
+# ArgoCD AppProject: team-apps
+# Scopes which repos and namespaces teams can deploy to.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: team-apps
+  namespace: argocd
+  labels:
+    app.kubernetes.io/managed-by: platform-team
+spec:
+  description: Team application deployments via ArgoCD GitOps
+
+  # Allow deploying from Azure DevOps repos
+  sourceRepos:
+    - 'https://dev.azure.com/*'
+    - 'https://YOUR_HARBOR_HOST/*'
+
+  # Allow deploying to any namespace on the local cluster
+  destinations:
+    - namespace: '*'
+      server: https://kubernetes.default.svc
+
+  # Permit all standard Kubernetes + OpenShift resource kinds
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRoleBinding
+
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+
+  # Sync windows: block production deployments on weekends
+  syncWindows:
+    - kind: deny
+      schedule: '0 0 * * 6,0'
+      duration: 48h
+      namespaces:
+        - '*-prod'
+      manualSync: false
+
+---
+# =============================================================================
+# NetworkPolicy: allow Backstage → ArgoCD API traffic
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backstage-argocd
+  namespace: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-server
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: backstage
+          podSelector:
+            matchLabels:
+              app: backstage-backend
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8083

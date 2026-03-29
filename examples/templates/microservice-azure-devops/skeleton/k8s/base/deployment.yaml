@@ -1,0 +1,175 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${{ values.component_id }}
+  labels:
+    app: ${{ values.component_id }}
+    app.kubernetes.io/name: ${{ values.component_id }}
+    app.kubernetes.io/component: microservice
+    app.kubernetes.io/managed-by: backstage
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ${{ values.component_id }}
+  template:
+    metadata:
+      labels:
+        app: ${{ values.component_id }}
+        app.kubernetes.io/name: ${{ values.component_id }}
+        version: latest
+      annotations:
+        {%- if values.enableObservability %}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "${{ values.containerPort }}"
+        prometheus.io/path: "/metrics"
+        {%- endif %}
+    spec:
+      serviceAccountName: ${{ values.component_id }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      
+      containers:
+      - name: ${{ values.component_id }}
+        image: harbor.company.com/${{ values.harborProject }}/${{ values.component_id }}:latest
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: ${{ values.containerPort }}
+          protocol: TCP
+        
+        env:
+        - name: PORT
+          value: "${{ values.containerPort }}"
+        - name: ENVIRONMENT
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        {%- if values.database != 'none' %}
+        - name: DATABASE_HOST
+          valueFrom:
+            secretKeyRef:
+              name: ${{ values.component_id }}-db
+              key: host
+        - name: DATABASE_PORT
+          valueFrom:
+            secretKeyRef:
+              name: ${{ values.component_id }}-db
+              key: port
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: ${{ values.component_id }}-db
+              key: database
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: ${{ values.component_id }}-db
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ${{ values.component_id }}-db
+              key: password
+        {%- endif %}
+        
+        {%- if values.language == 'java' %}
+        # Java-specific env vars
+        - name: JAVA_OPTS
+          value: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+        {%- elif values.language == 'nodejs' %}
+        # Node.js-specific env vars
+        - name: NODE_ENV
+          value: "production"
+        - name: NODE_OPTIONS
+          value: "--max-old-space-size=512"
+        {%- endif %}
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 30
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+          capabilities:
+            drop:
+            - ALL
+        
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /app/cache
+      
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}
+      
+      imagePullSecrets:
+      - name: harbor-registry-secret
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - ${{ values.component_id }}
+              topologyKey: kubernetes.io/hostname

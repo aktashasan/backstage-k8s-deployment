@@ -1,0 +1,32 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: authn
+  title: Authentication Service
+  description: User authentication service for OAuth2/OIDC authentication
+  tags:
+    - microservice
+    - authentication
+    - oauth2
+    - oidc
+    - security
+  annotations:
+    backstage.io/kubernetes-id: crystal-authn
+    backstage.io/kubernetes-namespace: crystal
+    backstage.io/kubernetes-label-selector: 'app=authn'
+    backstage.io/techdocs-ref: dir:.
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '3000'
+  links:
+    - url: https://YOUR_GITLAB_NAMESPACE/authn
+      title: Source Code
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: security-team
+  system: microservices-platform
+  providesApis:
+    - api:default/auth-api
+  dependsOn:
+    - resource:postgresql-shared

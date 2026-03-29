@@ -1,0 +1,3 @@
+# Component Definitions
+# Bu dosya artık kullanılmıyor - k8s-orchestration mikroservisleri doğrudan catalog'a ekleniyor
+# Gerçek component'ler: k8s-orchestration/*-mgmt klasörlerindeki catalog-info.yaml dosyalarında

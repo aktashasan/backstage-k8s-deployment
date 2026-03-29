@@ -1,0 +1,77 @@
+{%- if values.language == 'java' %}
+server:
+  port: {{ values.containerPort }}
+  shutdown: graceful
+
+spring:
+  application:
+    name: {{ values.component_id }}
+  
+  {%- if values.database == 'postgresql' %}
+  datasource:
+    url: jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DATABASE_NAME:{{ values.component_id }}}
+    username: ${DATABASE_USER:appuser}
+    password: ${DATABASE_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+  {%- elif values.database == 'mongodb' %}
+  data:
+    mongodb:
+      uri: mongodb://${DATABASE_HOST:localhost}:${DATABASE_PORT:27017}/${DATABASE_NAME:{{ values.component_id }}}
+      username: ${DATABASE_USER:appuser}
+      password: ${DATABASE_PASSWORD:password}
+  {%- elif values.database == 'redis' %}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  {%- endif %}
+
+{%- if values.enableObservability %}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+  
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${ENVIRONMENT:local}
+  
+  tracing:
+    sampling:
+      probability: 1.0
+{%- endif %}
+
+logging:
+  level:
+    root: INFO
+    com.company: ${LOG_LEVEL:INFO}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+{%- endif %}

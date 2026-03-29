@@ -1,0 +1,80 @@
+# Helm values for ${{ values.name }}
+# ArgoCD updates the image.tag field after each successful CI build.
+
+replicaCount: 1
+
+image:
+  repository: "${{ values.harborUrl }}/${{ values.harborProject }}/${{ values.name }}"
+  tag: "latest"
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: harbor-pull-secret
+
+nameOverride: ""
+fullnameOverride: "${{ values.name }}"
+
+serviceAccount:
+  create: false
+  name: ""
+
+podLabels:
+  # This label is REQUIRED for the Backstage Kubernetes plugin to discover pods
+  backstage.io/kubernetes-id: "${{ values.name }}"
+
+podAnnotations: {}
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+# OpenShift Route (replaces Ingress on OCP)
+route:
+  enabled: true
+  host: ""  # Auto-assigned by OCP if empty
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+
+# Standard Kubernetes Ingress (disable if using OCP Route above)
+ingress:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: 8080
+  initialDelaySeconds: 45
+  periodSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: 8080
+  initialDelaySeconds: 20
+  periodSeconds: 5
+  failureThreshold: 3
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+env: []
+  # - name: SPRING_PROFILES_ACTIVE
+  #   value: production
+
+envFrom: []
+  # - secretRef:
+  #     name: ${{ values.name }}-secrets

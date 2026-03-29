@@ -1,0 +1,193 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backstage-backend
+  namespace: backstage
+  labels:
+    app: backstage-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backstage-backend
+  template:
+    metadata:
+      labels:
+        app: backstage-backend
+    spec:
+      containers:
+      - name: backend
+        image: YOUR_HARBOR_HOST/backstage/backstage-backend:latest
+        imagePullPolicy: Always
+        workingDir: /app
+        command: ["node", "/app/packages/backend/dist/index.cjs.js", "--config", "/app/app-config.yaml", "--config", "/app/app-config.production.yaml", "--config", "/app/app-config.argocd.yaml"]
+        ports:
+        - containerPort: 7007
+          name: http
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: NODE_TLS_REJECT_UNAUTHORIZED
+          value: "0"
+        - name: BACKEND_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: BACKEND_SECRET
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_HOST
+          value: "postgres"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: "backstage_plugin_catalog"
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: GITHUB_TOKEN
+        - name: AZURE_DEVOPS_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: AZURE_DEVOPS_TOKEN
+        - name: GITLAB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: GITLAB_TOKEN
+        - name: HARBOR_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: HARBOR_USERNAME
+        - name: HARBOR_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: HARBOR_PASSWORD
+        - name: DEV_CLUSTER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: DEV_CLUSTER_TOKEN
+              optional: true
+        - name: OPENSHIFT_ITERATE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: OPENSHIFT_ITERATE_TOKEN
+              optional: true
+        # OpenShift Production cluster (primary) — from RBAC serviceaccount
+        - name: OPENSHIFT_PROD_URL
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: OPENSHIFT_PROD_URL
+              optional: true
+        - name: OPENSHIFT_PROD_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: OPENSHIFT_PROD_TOKEN
+              optional: true
+        - name: OPENSHIFT_PROD_CA_DATA
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: OPENSHIFT_PROD_CA_DATA
+              optional: true
+        - name: OPENSHIFT_PROD_CONSOLE_URL
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: OPENSHIFT_PROD_CONSOLE_URL
+              optional: true
+        # Azure DevOps organization
+        - name: AZURE_DEVOPS_ORG
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: AZURE_DEVOPS_ORG
+              optional: true
+        # TechDocs Azure Blob Storage
+        - name: AZURE_STORAGE_ACCOUNT_NAME
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: AZURE_STORAGE_ACCOUNT_NAME
+              optional: true
+        - name: AZURE_STORAGE_ACCOUNT_KEY
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: AZURE_STORAGE_ACCOUNT_KEY
+              optional: true
+        - name: TECHDOCS_AZURE_CONTAINER_NAME
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: TECHDOCS_AZURE_CONTAINER_NAME
+              optional: true
+        - name: DEV_CLUSTER_URL
+          value: ""
+        - name: OPENSHIFT_ITERATE_URL
+          value: "https://api.iterate.openshift.example.com:6443"
+        - name: OPENSHIFT_ITERATE_DASHBOARD
+          value: "https://console.openshift.iterate.example.com"
+        - name: APP_BASE_URL
+          value: "http://YOUR_BACKSTAGE_DOMAIN"
+        - name: BACKEND_BASE_URL
+          value: "http://YOUR_BACKSTAGE_DOMAIN"
+        volumeMounts:
+        - name: app-config
+          mountPath: /app/app-config.yaml
+          subPath: app-config.yaml
+        - name: app-config
+          mountPath: /app/app-config.production.yaml
+          subPath: app-config.production.yaml
+        - name: app-config-argocd
+          mountPath: /app/app-config.argocd.yaml
+          subPath: app-config.argocd.yaml
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /healthcheck
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthcheck
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      imagePullSecrets:
+      - name: harbor-registry-secret
+      serviceAccountName: backstage
+      volumes:
+      - name: app-config
+        configMap:
+          name: backstage-config
+      - name: app-config-argocd
+        configMap:
+          name: backstage-config-argocd

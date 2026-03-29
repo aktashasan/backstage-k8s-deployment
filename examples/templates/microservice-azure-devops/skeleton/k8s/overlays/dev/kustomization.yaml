@@ -1,0 +1,99 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: ${{ values.component_id }}-dev
+
+# Base
+bases:
+  - ../../base
+
+# Namespace
+namespace: ${{ values.namespace }}-dev
+
+# Name prefix/suffix
+nameSuffix: -dev
+
+# Common labels
+commonLabels:
+  environment: dev
+  tier: development
+
+# Common annotations
+commonAnnotations:
+  deployment.kubernetes.io/environment: dev
+
+# Images - override with dev tag
+images:
+  - name: harbor.company.com/${{ values.harborProject }}/${{ values.component_id }}
+    newTag: dev-latest
+
+# Patches
+patches:
+  # Reduce replicas for dev
+  - target:
+      kind: Deployment
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+
+  # Reduce resources for dev
+  - target:
+      kind: Deployment
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
+  # Add dev environment variables
+  - target:
+      kind: Deployment
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: LOG_LEVEL
+          value: DEBUG
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: ENABLE_DEBUG
+          value: "true"
+
+{%- if values.enableIngress %}
+  # Update ingress host for dev
+  - target:
+      kind: Ingress
+      name: ${{ values.component_id }}
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: ${{ values.component_id }}-dev.company.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: ${{ values.component_id }}-dev.company.com
+{%- endif %}
+
+# ConfigMap generator for dev-specific config
+configMapGenerator:
+  - name: ${{ values.component_id }}-dev-config
+    literals:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+      - CACHE_ENABLED=false
+
+# Secret generator (for dev credentials)
+secretGenerator:
+  - name: ${{ values.component_id }}-dev-secrets
+    literals:
+      - API_KEY=dev-api-key-placeholder

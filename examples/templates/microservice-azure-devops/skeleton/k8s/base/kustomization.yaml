@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: ${{ values.component_id }}-base
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/name: ${{ values.component_id }}
+  app.kubernetes.io/managed-by: backstage
+  app.kubernetes.io/part-of: ${{ values.system or 'microservices' }}
+
+# Resources
+resources:
+  - deployment.yaml
+  - service.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+  {%- if values.enableIngress %}
+  - ingress.yaml
+  {%- endif %}
+  {%- if values.enableHPA %}
+  - hpa.yaml
+  {%- endif %}
+  - pdb.yaml
+
+# Images
+images:
+  - name: harbor.company.com/${{ values.harborProject }}/${{ values.component_id }}
+    newTag: latest
+
+# ConfigMap Generator
+configMapGenerator:
+  - name: ${{ values.component_id }}-env
+    literals:
+      - COMPONENT_NAME=${{ values.component_id }}
+      - LANGUAGE=${{ values.language }}
+      - FRAMEWORK=${{ values.framework }}
+
+# Namespace (will be overridden by overlays)
+namespace: ${{ values.namespace }}

@@ -1,0 +1,137 @@
+{%- if values.gitopsProvider == 'argocd' %}
+# ArgoCD Application for ${{ values.component_id }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ${{ values.component_id }}
+  namespace: argocd
+  labels:
+    app: ${{ values.component_id }}
+    managed-by: backstage
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://dev.azure.com/${{ values.azureDevOpsOrg }}/${{ values.azureDevOpsProject }}/_git/${{ values.repoName }}
+    targetRevision: HEAD
+    path: k8s/overlays/dev
+    
+    # Use Kustomize
+    kustomize:
+      version: v5.0.0
+      images:
+        - harbor.company.com/${{ values.harborProject }}/${{ values.component_id }}:dev-latest
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${{ values.namespace }}-dev
+  
+  syncPolicy:
+    automated:
+      prune: true      # Delete resources that are no longer in git
+      selfHeal: true   # Auto-sync when cluster state differs from git
+      allowEmpty: false
+    
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+      - RespectIgnoreDifferences=true
+    
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # Health checks
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # Ignore if HPA manages replicas
+  
+  # Notifications
+  revisionHistoryLimit: 10
+
+---
+# ArgoCD Application for Test Environment
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ${{ values.component_id }}-test
+  namespace: argocd
+  labels:
+    app: ${{ values.component_id }}
+    environment: test
+spec:
+  project: default
+  
+  source:
+    repoURL: https://dev.azure.com/${{ values.azureDevOpsOrg }}/${{ values.azureDevOpsProject }}/_git/${{ values.repoName }}
+    targetRevision: test
+    path: k8s/overlays/test
+    
+    kustomize:
+      version: v5.0.0
+      images:
+        - harbor.company.com/${{ values.harborProject }}/${{ values.component_id }}:test-latest
+  
+  destination:
+    server: https://test-cluster.company.com
+    namespace: ${{ values.namespace }}-test
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+
+---
+# ArgoCD Application for Production
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ${{ values.component_id }}-prod
+  namespace: argocd
+  labels:
+    app: ${{ values.component_id }}
+    environment: production
+spec:
+  project: production
+  
+  source:
+    repoURL: https://dev.azure.com/${{ values.azureDevOpsOrg }}/${{ values.azureDevOpsProject }}/_git/${{ values.repoName }}
+    targetRevision: prod
+    path: k8s/overlays/prod
+    
+    kustomize:
+      version: v5.0.0
+      images:
+        - harbor.company.com/${{ values.harborProject }}/${{ values.component_id }}:latest
+  
+  destination:
+    server: https://prod-cluster.company.com
+    namespace: ${{ values.namespace }}
+  
+  # Production requires manual sync
+  syncPolicy:
+    automated:
+      prune: false     # Don't auto-prune in production
+      selfHeal: false  # Don't auto-heal in production
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+    
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+  
+  revisionHistoryLimit: 20
+{%- endif %}

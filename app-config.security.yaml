@@ -1,0 +1,190 @@
+# Security & Compliance Configuration
+# Security scanning integrations and policies
+
+# Security Scanning Integrations
+security:
+  # Fortify Integration
+  fortify:
+    enabled: true
+    url: ${FORTIFY_URL:-https://fortify.company.com}
+    apiKey: ${FORTIFY_API_KEY}
+    projectTemplate: 'default'
+    
+    # Scan policies
+    policies:
+      # Block deployment if critical vulnerabilities found
+      blockOnCritical: true
+      # Maximum allowed high severity issues
+      maxHighSeverity: 5
+      # Maximum allowed medium severity issues
+      maxMediumSeverity: 20
+      
+    # Scan triggers
+    triggers:
+      - on: 'pull-request'
+        scanType: 'incremental'
+      - on: 'merge-to-main'
+        scanType: 'full'
+      - on: 'pre-deployment'
+        scanType: 'full'
+        
+  # SonarQube Integration
+  sonarqube:
+    enabled: true
+    url: ${SONARQUBE_URL:-https://sonarqube.company.com}
+    token: ${SONARQUBE_TOKEN}
+    
+    # Quality gates
+    qualityGates:
+      # Mandatory quality gates
+      mandatory:
+        - 'Security Hotspots'
+        - 'Vulnerabilities'
+        - 'Code Smells'
+        
+      # Quality gate thresholds
+      thresholds:
+        coverage: 80  # Minimum code coverage %
+        duplications: 3  # Maximum duplication %
+        maintainability: 'A'  # Maintainability rating
+        reliability: 'A'  # Reliability rating
+        security: 'A'  # Security rating
+        
+    # Scan policies
+    policies:
+      # Block deployment if quality gate fails
+      blockOnFailure: true
+      # Require approval if quality gate is warning
+      requireApprovalOnWarning: true
+      
+  # Trivy Integration (Container Scanning)
+  trivy:
+    enabled: true
+    url: ${TRIVY_URL:-https://trivy.company.com}
+    apiKey: ${TRIVY_API_KEY}
+    
+    # Scan policies
+    policies:
+      # Block deployment if critical vulnerabilities found
+      blockOnCritical: true
+      # Maximum allowed high severity issues
+      maxHighSeverity: 10
+      # Scan all layers
+      scanAllLayers: true
+      # Include secrets scanning
+      scanSecrets: true
+      
+    # Scan triggers
+    triggers:
+      - on: 'image-build'
+        scanType: 'full'
+      - on: 'pre-deployment'
+        scanType: 'full'
+
+# Secret Management
+secrets:
+  # Azure Key Vault Integration
+  azureKeyVault:
+    enabled: true
+    url: ${AZURE_KEY_VAULT_URL}
+    tenantId: ${AZURE_TENANT_ID}
+    clientId: ${AZURE_KEY_VAULT_CLIENT_ID}
+    clientSecret: ${AZURE_KEY_VAULT_CLIENT_SECRET}
+    
+  # HashiCorp Vault Integration (Alternative)
+  vault:
+    enabled: false
+    url: ${VAULT_URL}
+    token: ${VAULT_TOKEN}
+    mountPath: 'secret'
+    
+  # Secret rotation
+  rotation:
+    enabled: true
+    interval: '90d'  # Rotate every 90 days
+    notifyBefore: '7d'  # Notify 7 days before rotation
+
+# Compliance
+compliance:
+  # SOC 2 Compliance
+  soc2:
+    enabled: true
+    tracking:
+      - access-controls
+      - encryption
+      - monitoring
+      - incident-response
+      
+  # PCI-DSS Compliance (for payment services)
+  pciDss:
+    enabled: true
+    scope:
+      - payment-service
+      - payment-api
+    requirements:
+      - encryption
+      - access-controls
+      - monitoring
+      - vulnerability-management
+      
+  # GDPR Compliance
+  gdpr:
+    enabled: true
+    dataRetention:
+      default: '2y'
+      personalData: '1y'
+      logs: '90d'
+    rightToErasure: true
+    dataPortability: true
+
+# Security Policies
+policies:
+  # Code Security Policies
+  code:
+    # No secrets in code
+    noSecretsInCode: true
+    # Required security headers
+    requiredHeaders:
+      - 'X-Content-Type-Options: nosniff'
+      - 'X-Frame-Options: DENY'
+      - 'X-XSS-Protection: 1; mode=block'
+      - 'Strict-Transport-Security: max-age=31536000'
+      
+  # Container Security Policies
+  container:
+    # No root user
+    noRootUser: true
+    # Read-only filesystem
+    readOnlyFilesystem: true
+    # Drop all capabilities
+    dropAllCapabilities: true
+    # Use distroless or minimal base images
+    minimalBaseImage: true
+    
+  # Network Security Policies
+  network:
+    # Network policies required
+    requireNetworkPolicies: true
+    # TLS required for all external traffic
+    requireTLS: true
+    # Certificate rotation
+    certificateRotation: '90d'
+
+# Audit Logging
+audit:
+  enabled: true
+  logLevel: 'info'
+  events:
+    - authentication
+    - authorization
+    - resource-access
+    - configuration-changes
+    - security-scans
+    - deployments
+    
+  # Audit log storage
+  storage:
+    type: 'azure-log-analytics'  # or 'elasticsearch', 'splunk'
+    azureLogAnalytics:
+      workspaceId: ${AZURE_LOG_ANALYTICS_WORKSPACE_ID}
+      sharedKey: ${AZURE_LOG_ANALYTICS_SHARED_KEY}

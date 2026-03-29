@@ -1,0 +1,31 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: permission-mgmt
+  title: Permission Management
+  description: Permission and access control management service
+  tags:
+    - microservice
+    - permissions
+    - access-control
+    - security
+  annotations:
+    backstage.io/kubernetes-id: crystal-permission-mgmt
+    backstage.io/kubernetes-namespace: crystal
+    backstage.io/kubernetes-label-selector: 'app=permission-mgmt'
+    backstage.io/techdocs-ref: dir:.
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '3000'
+  links:
+    - url: https://YOUR_GITLAB_NAMESPACE/permission-mgmt
+      title: Source Code
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: security-team
+  system: microservices-platform
+  providesApis:
+    - api:default/auth-api
+  dependsOn:
+    - resource:postgresql-shared

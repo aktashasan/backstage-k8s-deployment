@@ -1,0 +1,91 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: openshift-iterate-service
+  title: OpenShift Iterate Service
+  description: Yeni repo açar, minimal Node.js servisi oluşturur ve OpenShift Iterate cluster'a CI/CD ile deploy eder
+  tags:
+    - openshift
+    - iterate
+    - nodejs
+    - service
+spec:
+  owner: user:guest
+  type: service
+
+  parameters:
+    - title: Servis Bilgileri
+      required:
+        - name
+      properties:
+        name:
+          title: Servis Adı
+          type: string
+          description: Servis için benzersiz ad (kebab-case önerilir)
+          pattern: '^[a-z0-9-]+$'
+          ui:autofocus: true
+        namespace:
+          title: OpenShift Namespace (Iterate)
+          type: string
+          description: OpenShift Iterate'de hedef namespace
+          default: iterate-dev
+        description:
+          title: Açıklama
+          type: string
+          description: Servisin işlevi (opsiyonel)
+
+    - title: Git Repository
+      required:
+        - repoUrl
+      properties:
+        repoUrl:
+          title: Repository (oluşturulacak)
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - gitlab.com
+          description: 'GitLab group ve project seçin; yoksa "Create new" ile repo adı yazın.'
+
+  steps:
+    - id: fetch
+      name: Fetch Skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          namespace: ${{ parameters.namespace }}
+          description: "${{ parameters.description or 'OpenShift Iterate service' }}"
+
+    - id: publish
+      name: Publish to GitLab
+      action: publish:gitlab
+      input:
+        repoUrl: ${{ parameters.repoUrl }}
+        defaultBranch: main
+        sourcePath: .
+        gitAuthorName: Backstage
+        gitAuthorEmail: backstage@backstage.io
+        settings:
+          description: "${{ parameters.description or 'OpenShift Iterate service' }}"
+
+    - id: register
+      name: Catalog'a Kayıt
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
+
+  output:
+    links:
+      - title: Repository (GitLab)
+        url: ${{ steps.publish.output.remoteUrl }}
+        icon: code
+      - title: Open in Catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
+      - title: OpenShift Console (Iterate)
+        url: https://console.openshift.iterate.example.com
+        icon: dashboard
+        description: 'Iterate cluster console (gerçek URL app-config OPENSHIFT_ITERATE_DASHBOARD ile ayarlanır)'

@@ -1,0 +1,203 @@
+{%- if values.enableTilt %}
+# Tiltfile for ${{ values.component_id }}
+# Local Development with Tilt
+
+# Load extensions
+load('ext://restart_process', 'docker_build_with_restart')
+load('ext://helm_remote', 'helm_remote')
+
+# Configuration
+config.define_string('namespace', args=False, usage='Kubernetes namespace to use')
+cfg = config.parse()
+namespace = cfg.get('namespace', '${{ values.namespace }}-dev')
+
+# Set default registry
+default_registry('harbor.ankacloud.com/${{ values.harborProject }}')
+
+# Build settings
+allow_k8s_contexts('dev-cluster')  # Only allow dev cluster
+
+{%- if values.language == 'java' %}
+# Java/Spring Boot
+local_resource(
+  '${{ values.component_id }}-compile',
+  'mvn compile -DskipTests',
+  deps=['src', 'pom.xml'],
+  ignore=['src/test']
+)
+
+docker_build(
+  '${{ values.component_id }}',
+  '.',
+  dockerfile='Dockerfile',
+  target='builder',
+  live_update=[
+    sync('./target/classes', '/app/target/classes'),
+    restart_container()
+  ]
+)
+
+{%- elif values.language == 'nodejs' %}
+# Node.js
+local_resource(
+  '${{ values.component_id }}-install',
+  'npm install',
+  deps=['package.json', 'package-lock.json']
+)
+
+docker_build(
+  '${{ values.component_id }}',
+  '.',
+  dockerfile='Dockerfile',
+  live_update=[
+    sync('./src', '/app/src'),
+    run('npm install', trigger=['./package.json']),
+    restart_container()
+  ]
+)
+
+{%- elif values.language == 'go' %}
+# Go
+local_resource(
+  '${{ values.component_id }}-compile',
+  'go build -o bin/${{ values.component_id }} ./cmd/main.go',
+  deps=['cmd', 'internal', 'pkg']
+)
+
+docker_build(
+  '${{ values.component_id }}',
+  '.',
+  dockerfile='Dockerfile',
+  live_update=[
+    sync('./bin/${{ values.component_id }}', '/app/app'),
+    restart_container()
+  ]
+)
+
+{%- else %}
+# Generic Docker build
+docker_build(
+  '${{ values.component_id }}',
+  '.',
+  dockerfile='Dockerfile'
+)
+{%- endif %}
+
+# Kubernetes resources
+k8s_yaml(kustomize('./k8s/overlays/dev'))
+
+# Set namespace
+k8s_resource(
+  '${{ values.component_id }}',
+  port_forwards='${{ values.containerPort }}:${{ values.containerPort }}',
+  resource_deps=['${{ values.component_id }}-compile'] if '${{ values.component_id }}-compile' in dir() else [],
+  labels=['app']
+)
+
+{%- if values.database != 'none' %}
+# Database (for local development)
+{%- if values.database == 'postgresql' %}
+helm_remote(
+  'postgresql',
+  repo_name='bitnami',
+  repo_url='https://charts.bitnami.com/bitnami',
+  set=[
+    'auth.username=appuser',
+    'auth.password=devpassword',
+    'auth.database=${{ values.component_id }}',
+    'primary.persistence.enabled=false'
+  ],
+  namespace=namespace
+)
+
+k8s_resource(
+  'postgresql',
+  port_forwards='5432:5432',
+  labels=['database']
+)
+
+{%- elif values.database == 'mongodb' %}
+helm_remote(
+  'mongodb',
+  repo_name='bitnami',
+  repo_url='https://charts.bitnami.com/bitnami',
+  set=[
+    'auth.username=appuser',
+    'auth.password=devpassword',
+    'auth.database=${{ values.component_id }}',
+    'persistence.enabled=false'
+  ],
+  namespace=namespace
+)
+
+k8s_resource(
+  'mongodb',
+  port_forwards='27017:27017',
+  labels=['database']
+)
+
+{%- elif values.database == 'redis' %}
+helm_remote(
+  'redis',
+  repo_name='bitnami',
+  repo_url='https://charts.bitnami.com/bitnami',
+  set=[
+    'auth.enabled=false',
+    'master.persistence.enabled=false'
+  ],
+  namespace=namespace
+)
+
+k8s_resource(
+  'redis-master',
+  port_forwards='6379:6379',
+  labels=['cache']
+)
+{%- endif %}
+{%- endif %}
+
+# Local development helpers
+local_resource(
+  'logs',
+  serve_cmd='kubectl logs -f deployment/${{ values.component_id }} -n ' + namespace,
+  labels=['tools'],
+  trigger_mode=TRIGGER_MODE_MANUAL
+)
+
+local_resource(
+  'test',
+  {%- if values.language == 'java' %}
+  'mvn test',
+  {%- elif values.language == 'nodejs' %}
+  'npm test',
+  {%- elif values.language == 'go' %}
+  'go test ./...',
+  {%- else %}
+  'echo "Run tests"',
+  {%- endif %}
+  auto_init=False,
+  trigger_mode=TRIGGER_MODE_MANUAL,
+  labels=['tools']
+)
+
+# Watch for changes
+watch_file('./k8s/')
+watch_file('./Dockerfile')
+
+# Print helpful info
+print("""
+╔══════════════════════════════════════════════════════════════╗
+║  ${{ values.component_id }} - Local Development                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+Service URL: http://localhost:${{ values.containerPort }}
+Namespace: """ + namespace + """
+
+Tilt UI: http://localhost:10350
+
+Commands:
+  - Press 'space' to open Tilt UI
+  - Run 'tilt down' to stop everything
+  - Run 'tilt ci' for CI mode
+""")
+{%- endif %}

@@ -1,0 +1,336 @@
+# Test Branch Pipeline - PR Triggered Deploy to Test Cluster
+# Triggered on: Pull Requests to dev/main branches
+
+trigger: none
+
+pr:
+  branches:
+    include:
+      - dev
+      - main
+  paths:
+    exclude:
+      - README.md
+      - docs/*
+
+variables:
+  componentId: '${{ values.component_id }}'
+  harborProject: '${{ values.harborProject }}'
+  imageName: '$(harborProject)/$(componentId)'
+  imageTag: 'pr-$(System.PullRequest.PullRequestId)-$(Build.BuildId)'
+  namespace: '${{ values.namespace }}'
+  clusterName: 'test-cluster'
+  replicas: 1
+
+stages:
+  # Build & Full Testing
+  - stage: BuildAndTest
+    displayName: '🧪 Build & Full Tests'
+    jobs:
+      - job: Build
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+
+          {%- if values.language == 'java' %}
+          - task: Maven@4
+            displayName: 'Maven Build'
+            inputs:
+              mavenPomFile: 'pom.xml'
+              goals: 'clean package'
+              options: '-DskipTests'
+
+          - task: Maven@4
+            displayName: 'Unit Tests'
+            inputs:
+              mavenPomFile: 'pom.xml'
+              goals: 'test'
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+              codeCoverageToolOption: 'JaCoCo'
+
+          - task: Maven@4
+            displayName: 'Integration Tests'
+            inputs:
+              mavenPomFile: 'pom.xml'
+              goals: 'verify'
+              options: '-DskipUnitTests'
+
+          {%- elif values.language == 'nodejs' %}
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+          
+          - script: |
+              npm ci
+              npm run build
+              npm run test:unit
+              npm run test:integration
+              npm run test:e2e
+            displayName: 'Build & All Tests'
+          {%- endif %}
+
+      # Security & Quality Checks
+      - job: SecurityChecks
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          {%- if values.enableSonarQube %}
+          - task: SonarQubePrepare@6
+            displayName: 'SonarQube Prepare'
+            inputs:
+              SonarQube: 'SonarQube-Connection'
+              scannerMode: 'CLI'
+              configMode: 'manual'
+              cliProjectKey: '$(componentId)'
+
+          - task: SonarQubeAnalyze@6
+            displayName: 'SonarQube Analyze'
+
+          - task: SonarQubePublish@6
+            displayName: 'Quality Gate'
+            inputs:
+              pollingTimeoutSec: '300'
+          {%- endif %}
+
+          # Dependency Check
+          - script: |
+              {%- if values.language == 'java' %}
+              mvn org.owasp:dependency-check-maven:check
+              {%- elif values.language == 'nodejs' %}
+              npm audit --production
+              {%- elif values.language == 'python' %}
+              pip install safety
+              safety check
+              {%- endif %}
+            displayName: 'Dependency Vulnerability Check'
+            continueOnError: true
+
+  # Container Build & Scan
+  - stage: ContainerBuildScan
+    displayName: 'Container Build & Scan'
+    dependsOn: BuildAndTest
+    jobs:
+      - job: Docker
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: Docker@2
+            displayName: 'Build Test Image'
+            inputs:
+              containerRegistry: 'Harbor-Registry'
+              repository: '$(imageName)'
+              command: 'build'
+              Dockerfile: 'Dockerfile'
+              tags: |
+                $(imageTag)
+                pr-$(System.PullRequest.PullRequestId)
+
+          - task: Docker@2
+            displayName: 'Push to Harbor'
+            inputs:
+              containerRegistry: 'Harbor-Registry'
+              repository: '$(imageName)'
+              command: 'push'
+              tags: |
+                $(imageTag)
+                pr-$(System.PullRequest.PullRequestId)
+
+          {%- if values.enableImageScan %}
+          # Comprehensive Security Scan
+          - script: |
+              echo "Running comprehensive Trivy scan..."
+              docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                aquasec/trivy image \
+                --severity LOW,MEDIUM,HIGH,CRITICAL \
+                --format json \
+                --output trivy-results.json \
+                harbor.company.com/$(imageName):$(imageTag)
+              
+              # Generate HTML report
+              docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                aquasec/trivy image \
+                --severity HIGH,CRITICAL \
+                --format template --template "@contrib/html.tpl" \
+                --output trivy-report.html \
+                harbor.company.com/$(imageName):$(imageTag)
+              
+              # Check for critical issues
+              CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' trivy-results.json)
+              HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' trivy-results.json)
+              
+              echo "Critical: $CRITICAL, High: $HIGH"
+              
+              if [ "$CRITICAL" -gt 5 ]; then
+                echo "##vso[task.logissue type=error]Too many critical vulnerabilities: $CRITICAL"
+                exit 1
+              fi
+            displayName: 'Trivy Security Scan'
+
+          - publish: $(System.DefaultWorkingDirectory)/trivy-report.html
+            artifact: SecurityScanReport-PR$(System.PullRequest.PullRequestId)
+            displayName: 'Publish Security Report'
+          {%- endif %}
+
+  # Deploy to Test Environment
+  {%- if values.deployToTest %}
+  - stage: DeployTest
+    displayName: '🧪 Deploy to Test'
+    dependsOn: ContainerBuildScan
+    jobs:
+      - deployment: DeployToTestCluster
+        displayName: 'Deploy to Test Cluster'
+        environment: 'test-cluster'
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                # Create PR-specific namespace
+                - task: Kubernetes@1
+                  displayName: 'Create PR Namespace'
+                  inputs:
+                    connectionType: 'kubernetesServiceConnection'
+                    kubernetesServiceConnection: '$(clusterName)'
+                    command: 'create'
+                    arguments: 'namespace $(namespace)-pr-$(System.PullRequest.PullRequestId) --dry-run=client -o yaml | kubectl apply -f -'
+
+                # Deploy with Kustomize
+                - script: |
+                    # Update kustomization for PR
+                    cd k8s/overlays/test
+                    kustomize edit set image $(imageName)=harbor.company.com/$(imageName):$(imageTag)
+                    kustomize edit set namespace $(namespace)-pr-$(System.PullRequest.PullRequestId)
+                    
+                    # Apply
+                    kustomize build . | kubectl apply -f -
+                  displayName: 'Deploy with Kustomize'
+                  env:
+                    KUBECONFIG: $(Agent.TempDirectory)/kubeconfig
+
+                # Wait for deployment
+                - script: |
+                    kubectl rollout status deployment/$(componentId) \
+                      -n $(namespace)-pr-$(System.PullRequest.PullRequestId) \
+                      --timeout=5m
+                  displayName: 'Wait for Rollout'
+
+                # Get service URL
+                - script: |
+                    {%- if values.enableIngress %}
+                    PR_URL="https://$(componentId)-pr-$(System.PullRequest.PullRequestId).test.company.com"
+                    {%- else %}
+                    CLUSTER_IP=$(kubectl get svc $(componentId) -n $(namespace)-pr-$(System.PullRequest.PullRequestId) -o jsonpath='{.spec.clusterIP}')
+                    PR_URL="http://$CLUSTER_IP:${{ values.containerPort }}"
+                    {%- endif %}
+                    
+                    echo "##vso[task.setvariable variable=PR_URL;isOutput=true]$PR_URL"
+                    echo "PR Environment: $PR_URL"
+                  displayName: 'Get PR URL'
+                  name: prInfo
+  {%- endif %}
+
+  # Integration & E2E Tests
+  - stage: IntegrationTests
+    displayName: '🔗 Integration Tests'
+    dependsOn: DeployTest
+    variables:
+      prUrl: $[ stageDependencies.DeployTest.DeployToTestCluster.outputs['DeployToTestCluster.prInfo.PR_URL'] ]
+    jobs:
+      - job: E2ETests
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          # Health Check
+          - script: |
+              echo "Testing: $(prUrl)"
+              for i in {1..30}; do
+                STATUS=$(curl -s -o /dev/null -w "%{http_code}" $(prUrl)/health)
+                if [ "$STATUS" = "200" ]; then
+                  echo "Service is healthy."
+                  break
+                fi
+                echo "⏳ Waiting... ($i/30)"
+                sleep 10
+              done
+            displayName: 'Health Check'
+
+          # API Tests
+          {%- if values.language == 'nodejs' %}
+          - script: |
+              export API_URL=$(prUrl)
+              npm run test:api
+            displayName: 'API Tests'
+          {%- elif values.language == 'java' %}
+          - task: Maven@4
+            displayName: 'API Tests'
+            inputs:
+              mavenPomFile: 'pom.xml'
+              goals: 'test'
+              options: '-Dtest=**/*ApiTest -Dapi.url=$(prUrl)'
+          {%- endif %}
+
+          # Performance Tests
+          - script: |
+              # Simple load test with Apache Bench
+              ab -n 1000 -c 10 $(prUrl)/health
+            displayName: 'Performance Test'
+            continueOnError: true
+
+  # PR Comment
+  - stage: PRComment
+    displayName: '💬 Update PR'
+    dependsOn: 
+      - DeployTest
+      - IntegrationTests
+    condition: always()
+    jobs:
+      - job: Comment
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              PR_ID=$(System.PullRequest.PullRequestId)
+              
+              # Build comment
+              COMMENT="## Test Deployment Complete\n\n"
+              COMMENT="$COMMENT**Component:** \`$(componentId)\`\n"
+              COMMENT="$COMMENT**Image:** \`harbor.company.com/$(imageName):$(imageTag)\`\n"
+              {%- if values.deployToTest and values.enableIngress %}
+              COMMENT="$COMMENT**Test URL:** https://$(componentId)-pr-$PR_ID.test.company.com\n\n"
+              {%- endif %}
+              COMMENT="$COMMENT### Test Results\n"
+              COMMENT="$COMMENT- Build & Tests: Passed\n"
+              COMMENT="$COMMENT- Security Scan: Passed\n"
+              COMMENT="$COMMENT- Integration Tests: Passed\n\n"
+              COMMENT="$COMMENT**Note:** Test environment will be cleaned up after PR merge/close"
+              
+              # Post comment to PR
+              az repos pr update --id $PR_ID \
+                --description "$COMMENT" \
+                --org https://dev.azure.com/${{ values.azureDevOpsOrg }} \
+                --project ${{ values.azureDevOpsProject }}
+            displayName: 'Comment on PR'
+            env:
+              AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+
+  # Cleanup (when PR is closed)
+  - stage: Cleanup
+    displayName: '🧹 Cleanup'
+    condition: and(always(), eq(variables['Build.Reason'], 'PullRequest'), in(variables['System.PullRequest.Status'], 'completed', 'abandoned'))
+    dependsOn: []
+    jobs:
+      - job: CleanupPRResources
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              # Delete PR namespace
+              kubectl delete namespace $(namespace)-pr-$(System.PullRequest.PullRequestId) --ignore-not-found=true
+              
+              echo "Cleaned up PR test environment"
+            displayName: 'Delete PR Environment'

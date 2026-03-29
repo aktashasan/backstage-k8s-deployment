@@ -1,0 +1,60 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.component_id }}
+  description: ${{ values.description }}
+  annotations:
+    dev.azure.com/project-repo: ${{ values.azureDevOpsOrg }}/${{ values.azureDevOpsProject }}/${{ values.repoName }}
+    dev.azure.com/build-definition: ${{ values.component_id }}-pipeline
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/kubernetes-id: ${{ values.component_id }}
+    backstage.io/kubernetes-namespace: ${{ values.namespace }}
+    {%- if values.gitopsProvider == 'argocd' %}
+    argocd/app-name: ${{ values.component_id }}
+    {%- endif %}
+    harbor.io/project: ${{ values.harborProject }}
+    harbor.io/repository: ${{ values.component_id }}
+    prometheus.io/scrape: '${{ values.enableObservability }}'
+    prometheus.io/port: '${{ values.containerPort }}'
+    prometheus.io/path: '/actuator/prometheus'
+  tags:
+    - microservice
+    - ${{ values.language }}
+    - ${{ values.framework }}
+    {%- if values.database != 'none' %}
+    - ${{ values.database }}
+    {%- endif %}
+    - azure-devops
+    - kubernetes
+  links:
+    - url: https://YOUR_AZURE_DEVOPS_HOST/${{ values.azureDevOpsOrg }}/${{ values.azureDevOpsProject }}/_git/${{ values.repoName }}
+      title: Source Repository
+      icon: code
+    - url: https://YOUR_AZURE_DEVOPS_HOST/${{ values.azureDevOpsOrg }}/${{ values.azureDevOpsProject }}/_build
+      title: CI/CD Pipelines
+      icon: dashboard
+    - url: https://YOUR_HARBOR_HOST/harbor/projects/${{ values.harborProject }}/repositories/${{ values.component_id }}
+      title: Container Images
+      icon: storage
+    {%- if values.gitopsProvider == 'argocd' %}
+    - url: https://YOUR_ARGOCD_HOST/applications/${{ values.component_id }}
+      title: ArgoCD Application
+      icon: sync
+    {%- endif %}
+    - url: https://YOUR_GRAFANA_HOST/d/${{ values.component_id }}
+      title: Grafana Dashboard
+      icon: dashboard
+      
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  {%- if values.system %}
+  system: ${{ values.system }}
+  {%- endif %}
+  providesApis:
+    - ${{ values.component_id }}-api
+  dependsOn:
+    {%- if values.database != 'none' %}
+    - resource:${{ values.database }}-${{ values.namespace }}
+    {%- endif %}

@@ -1,0 +1,16 @@
+# Harbor için güvenilir CA sertifikası ekler (self-signed / internal CA için)
+# Kullanım:
+# 1) Harbor CA cert'i al: openssl s_client -connect YOUR_HARBOR_HOST:443 -showcerts </dev/null 2>/dev/null | openssl x509 -outform PEM -out harbor-ca.pem
+# 2) Base64'e çevir: base64 -w0 harbor-ca.pem
+# 3) Aşağıdaki data: kısmına yapıştır
+# 4) oc apply -f harbor-trusted-ca.yaml
+---
+apiVersion: config.openshift.io/v1
+kind: Image
+metadata:
+  name: cluster
+spec:
+  additionalTrustedCA:
+    - name: YOUR_HARBOR_HOST
+      data: |
+        PASTE_BASE64_CA_CERTIFICATE_HERE

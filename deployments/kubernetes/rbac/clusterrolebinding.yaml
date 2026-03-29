@@ -1,0 +1,22 @@
+# =============================================================================
+# ClusterRoleBinding: backstage-read
+#
+# Binds the backstage-read ClusterRole to the Backstage ServiceAccount.
+# This grants cluster-wide read-only access from the backstage namespace.
+# =============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backstage-read
+  labels:
+    app.kubernetes.io/name: backstage
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: backstage
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backstage-read
+subjects:
+  - kind: ServiceAccount
+    name: backstage
+    namespace: backstage

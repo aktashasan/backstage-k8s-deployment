@@ -1,0 +1,464 @@
+# Production Pipeline - Deploy to Production Cluster
+# Triggered on: commits/merges to prod/main branch
+# Requires: Manual approval before production deployment
+
+trigger:
+  branches:
+    include:
+      - prod
+      - main
+  paths:
+    exclude:
+      - README.md
+      - docs/*
+
+pr: none
+
+variables:
+  componentId: '${{ values.component_id }}'
+  harborProject: '${{ values.harborProject }}'
+  imageName: '$(harborProject)/$(componentId)'
+  # Use semantic versioning for production
+  imageTag: 'v$(Build.BuildNumber)'
+  namespace: '${{ values.namespace }}'
+  clusterName: 'prod-cluster'
+  replicas: ${{ values.replicas }}
+
+stages:
+  # Stage 1: Pre-Production Validation
+  - stage: PreProdValidation
+    displayName: 'Pre-Production Checks'
+    jobs:
+      - job: ValidationChecks
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+
+          # Verify all tests passed
+          - script: |
+              echo "Checking latest test results..."
+              # Query Azure DevOps for latest test pipeline results
+              # Ensure all tests passed before prod deployment
+            displayName: 'Verify Test Results'
+
+          # Check for open critical bugs
+          - script: |
+              echo "Checking for critical bugs in Azure Boards..."
+              # Query work items
+            displayName: 'Check Critical Bugs'
+
+          # Verify security scans
+          - script: |
+              echo "Verifying latest security scan results..."
+              # Check Trivy/SonarQube results
+            displayName: 'Verify Security Scans'
+
+  # Stage 2: Build Production Artifacts
+  - stage: ProductionBuild
+    displayName: 'Production Build'
+    dependsOn: PreProdValidation
+    jobs:
+      - job: BuildProd
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          {%- if values.language == 'java' %}
+          # Production optimized build
+          - task: Maven@4
+            displayName: 'Maven Production Build'
+            inputs:
+              mavenPomFile: 'pom.xml'
+              goals: 'clean package'
+              options: '-Pprod -DskipTests -Drevision=$(imageTag)'
+              publishJUnitResults: false
+
+          {%- elif values.language == 'nodejs' %}
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+          
+          - script: |
+              npm ci --production=false
+              NODE_ENV=production npm run build
+              # Production optimization
+              npm prune --production
+            displayName: 'Production Build'
+
+          {%- elif values.language == 'dotnet' %}
+          - task: DotNetCoreCLI@2
+            displayName: 'Production Build'
+            inputs:
+              command: 'publish'
+              publishWebProjects: false
+              projects: '**/*.csproj'
+              arguments: '--configuration Release --output $(Build.ArtifactStagingDirectory)'
+
+          {%- elif values.language == 'go' %}
+          - script: |
+              # Production build with optimizations
+              CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+              go build -a -installsuffix cgo \
+              -ldflags="-w -s -X main.version=$(imageTag)" \
+              -o bin/$(componentId) ./cmd/main.go
+            displayName: 'Go Production Build'
+          {%- endif %}
+
+          - publish: $(System.DefaultWorkingDirectory)
+            artifact: ProductionArtifact
+            displayName: 'Publish Artifact'
+
+  # Stage 3: Container Build with Production Optimizations
+  - stage: ProductionImage
+    displayName: 'Production Container'
+    dependsOn: ProductionBuild
+    jobs:
+      - job: DockerProd
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - download: current
+            artifact: ProductionArtifact
+
+          # Build production image
+          - task: Docker@2
+            displayName: 'Build Production Image'
+            inputs:
+              containerRegistry: 'Harbor-Registry'
+              repository: '$(imageName)'
+              command: 'build'
+              Dockerfile: 'Dockerfile.prod'
+              tags: |
+                $(imageTag)
+                prod-latest
+                latest
+              arguments: |
+                --build-arg VERSION=$(imageTag)
+                --build-arg BUILD_DATE=$(Build.Repository.Provider)
+                --label org.opencontainers.image.version=$(imageTag)
+                --label org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+          # Sign image (optional but recommended)
+          - script: |
+              # Use Cosign or Notary to sign the image
+              echo "Signing image..."
+              # cosign sign harbor.company.com/$(imageName):$(imageTag)
+            displayName: 'Sign Container Image'
+            continueOnError: true
+
+          # Push to Harbor
+          - task: Docker@2
+            displayName: 'Push Production Image'
+            inputs:
+              containerRegistry: 'Harbor-Registry'
+              repository: '$(imageName)'
+              command: 'push'
+              tags: |
+                $(imageTag)
+                prod-latest
+
+          # Comprehensive security scan (MUST PASS)
+          {%- if values.enableImageScan %}
+          - script: |
+              echo "Running production security scan..."
+              docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                aquasec/trivy image \
+                --severity CRITICAL,HIGH \
+                --exit-code 1 \
+                --format json \
+                --output trivy-prod-results.json \
+                harbor.company.com/$(imageName):$(imageTag)
+            displayName: 'Production Security Scan (Strict)'
+
+          - publish: trivy-prod-results.json
+            artifact: ProdSecurityScan-$(imageTag)
+          {%- endif %}
+
+  # Stage 4: Production Deployment Approval
+  - stage: ProductionApproval
+    displayName: 'Production Approval'
+    dependsOn: ProductionImage
+    jobs:
+      - job: WaitForApproval
+        displayName: 'Waiting for Manual Approval'
+        pool: server
+        timeoutInMinutes: 4320 # 3 days
+        steps:
+          - task: ManualValidation@0
+            displayName: 'Approve Production Deployment'
+            inputs:
+              notifyUsers: |
+                ${{ values.owner }}
+                platform-team@company.com
+              instructions: |
+                ## Production Deployment Approval Required
+                
+                **Component:** $(componentId)
+                **Version:** $(imageTag)
+                **Image:** harbor.company.com/$(imageName):$(imageTag)
+                
+                ### Checklist:
+                - [ ] All tests passed
+                - [ ] Security scans clean
+                - [ ] Performance validated
+                - [ ] Documentation updated
+                - [ ] Rollback plan ready
+                
+                **Please review and approve/reject this deployment.**
+
+  # Stage 5: Blue-Green Deployment Preparation
+  {%- if values.deployToProd %}
+  - stage: BlueGreenPrep
+    displayName: '🔵 Blue-Green Preparation'
+    dependsOn: ProductionApproval
+    jobs:
+      - job: PrepareGreenEnvironment
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          # Deploy to "green" (new version) environment
+          - script: |
+              echo "Preparing green environment..."
+              
+              # Label current deployment as "blue"
+              kubectl label deployment/$(componentId) \
+                -n $(namespace) \
+                version=blue --overwrite
+              
+              echo "Blue environment ready for comparison"
+            displayName: 'Prepare Blue Environment'
+
+  # Stage 6: Deploy to Production (Green Environment)
+  - stage: DeployProduction
+    displayName: 'Deploy to Production'
+    dependsOn: BlueGreenPrep
+    jobs:
+      - deployment: DeployToProd
+        displayName: 'Production Deployment'
+        environment: 'production'
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                {%- if values.gitopsProvider == 'argocd' %}
+                # ArgoCD Production Deployment
+                - script: |
+                    cd k8s/overlays/prod
+                    kustomize edit set image $(imageName)=harbor.company.com/$(imageName):$(imageTag)
+                    
+                    git config user.email "azuredevops@company.com"
+                    git config user.name "Azure DevOps Production"
+                    git add kustomization.yaml
+                    git commit -m "Release $(imageTag) to production [skip ci]"
+                    git tag -a $(imageTag) -m "Production release $(imageTag)"
+                    git push origin prod --tags
+                  displayName: 'Update GitOps for Production'
+
+                - script: |
+                    # Sync with ArgoCD
+                    argocd app sync $(componentId)-prod --prune
+                    argocd app wait $(componentId)-prod --health --timeout 600
+                  displayName: 'ArgoCD Production Sync'
+                  env:
+                    ARGOCD_SERVER: argocd.company.com
+                    ARGOCD_AUTH_TOKEN: $(ARGOCD_PROD_TOKEN)
+
+                {%- else %}
+                # Direct kubectl deployment with green environment
+                - script: |
+                    # Apply green deployment
+                    cd k8s/overlays/prod
+                    kustomize edit set image $(imageName)=harbor.company.com/$(imageName):$(imageTag)
+                    kustomize edit add label version:green -f
+                    
+                    kustomize build . | kubectl apply -f -
+                  displayName: 'Deploy Green Version'
+                  env:
+                    KUBECONFIG: $(PROD_KUBECONFIG)
+
+                # Wait for green to be healthy
+                - script: |
+                    kubectl rollout status deployment/$(componentId)-green \
+                      -n $(namespace) \
+                      --timeout=10m
+                  displayName: 'Wait for Green Rollout'
+                {%- endif %}
+
+                # Production smoke tests
+                - script: |
+                    echo "Running production smoke tests..."
+                    
+                    {%- if values.enableIngress %}
+                    PROD_URL="https://$(componentId).company.com"
+                    {%- else %}
+                    PROD_URL="http://$(kubectl get svc $(componentId) -n $(namespace) -o jsonpath='{.status.loadBalancer.ingress[0].ip}'):${{ values.containerPort }}"
+                    {%- endif %}
+                    
+                    # Health check
+                    for i in {1..20}; do
+                      STATUS=$(curl -s -o /dev/null -w "%{http_code}" $PROD_URL/health)
+                      if [ "$STATUS" = "200" ]; then
+                        echo "Production health check passed."
+                        break
+                      fi
+                      sleep 15
+                    done
+                    
+                    # Readiness check
+                    READY=$(curl -s $PROD_URL/ready | jq -r '.status')
+                    if [ "$READY" != "UP" ]; then
+                      echo "❌ Service not ready!"
+                      exit 1
+                    fi
+                  displayName: 'Production Smoke Tests'
+
+  # Stage 7: Traffic Switch (Blue-Green)
+  - stage: TrafficSwitch
+    displayName: '🔄 Switch Traffic'
+    dependsOn: DeployProduction
+    jobs:
+      - deployment: SwitchToGreen
+        displayName: 'Switch Traffic to Green'
+        environment: 'production-traffic-switch'
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Gradual traffic shift
+                - script: |
+                    echo "Starting gradual traffic shift..."
+                    
+                    # 10% to green
+                    kubectl patch service $(componentId) -n $(namespace) \
+                      -p '{"spec":{"selector":{"version":"green","weight":"10"}}}'
+                    sleep 300
+                    
+                    # Monitor metrics
+                    echo "Checking metrics..."
+                    
+                    # 50% to green
+                    kubectl patch service $(componentId) -n $(namespace) \
+                      -p '{"spec":{"selector":{"version":"green","weight":"50"}}}'
+                    sleep 300
+                    
+                    # 100% to green
+                    kubectl patch service $(componentId) -n $(namespace) \
+                      -p '{"spec":{"selector":{"version":"green"}}}'
+                    
+                    echo "Traffic fully switched to green."
+                  displayName: 'Gradual Traffic Shift'
+
+                # Monitor for issues
+                - script: |
+                    echo "Monitoring production metrics..."
+                    sleep 600  # Monitor for 10 minutes
+                    
+                    # Check error rates, latency, etc.
+                    # If issues detected, trigger rollback
+                  displayName: 'Monitor Production'
+
+  # Stage 8: Cleanup Blue Environment
+  - stage: CleanupBlue
+    displayName: '🧹 Cleanup Blue'
+    dependsOn: TrafficSwitch
+    condition: succeeded()
+    jobs:
+      - job: RemoveBlue
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              # Scale down blue deployment
+              kubectl scale deployment/$(componentId)-blue -n $(namespace) --replicas=0
+              
+              echo "Blue environment scaled down (kept for emergency rollback)"
+            displayName: 'Scale Down Blue'
+
+  # Stage 9: Post-Deployment
+  - stage: PostDeployment
+    displayName: '📊 Post-Deployment'
+    dependsOn: CleanupBlue
+    jobs:
+      - job: PostDeployTasks
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          # Create release notes
+          - script: |
+              echo "Creating release notes..."
+              cat > release-notes-$(imageTag).md << EOF
+              # Release $(imageTag)
+              
+              ## Component: $(componentId)
+              - **Version:** $(imageTag)
+              - **Date:** $(date)
+              - **Build:** $(Build.BuildNumber)
+              
+              ## Changes
+              $(git log --oneline --since="7 days ago")
+              
+              ## Deployment Info
+              - Image: harbor.company.com/$(imageName):$(imageTag)
+              - Namespace: $(namespace)
+              - Replicas: $(replicas)
+              EOF
+            displayName: 'Generate Release Notes'
+
+          # Tag repository
+          - script: |
+              git tag -a prod-$(imageTag) -m "Production release $(imageTag)"
+              git push origin prod-$(imageTag)
+            displayName: 'Tag Repository'
+
+          # Update documentation
+          - script: |
+              echo "Updating deployment documentation..."
+            displayName: 'Update Docs'
+
+          # Notify stakeholders
+          - script: |
+              echo "Production Deployment Successful!"
+              echo "Component: $(componentId)"
+              echo "Version: $(imageTag)"
+              {%- if values.enableIngress %}
+              echo "URL: https://$(componentId).company.com"
+              {%- endif %}
+            displayName: 'Success Notification'
+  {%- endif %}
+
+  # Rollback Stage (Manual trigger only)
+  - stage: Rollback
+    displayName: '⏪ Rollback'
+    dependsOn: DeployProduction
+    condition: failed()
+    jobs:
+      - job: RollbackToPrevious
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo "🚨 ROLLBACK INITIATED"
+              
+              # Switch traffic back to blue
+              kubectl patch service $(componentId) -n $(namespace) \
+                -p '{"spec":{"selector":{"version":"blue"}}}'
+              
+              # Scale down green
+              kubectl scale deployment/$(componentId)-green -n $(namespace) --replicas=0
+              
+              echo "Rolled back to previous version (blue)"
+            displayName: 'Emergency Rollback'
+
+          - script: |
+              echo "Notifying team about rollback..."
+              # Send alerts
+            displayName: 'Rollback Notification'

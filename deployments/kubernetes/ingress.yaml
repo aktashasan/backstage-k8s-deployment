@@ -4,57 +4,26 @@ metadata:
   name: backstage-ingress
   namespace: backstage
   annotations:
-    # ── NGINX Ingress Controller ──────────────────────────────────────────────
-    # Requires: https://kubernetes.github.io/ingress-nginx
-
-    # Redirect HTTP → HTTPS (set to "false" if TLS is terminated upstream)
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-
-    # Increase timeouts for long-running API requests (scaffolder, TechDocs build)
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
-
-    # Increase body size limit for scaffolder file uploads
-    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
-
-    # ── cert-manager (optional) ───────────────────────────────────────────────
-    # Uncomment if you use cert-manager for automatic TLS certificate provisioning
-    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
-
 spec:
-  # Must match your installed IngressClass name (commonly "nginx")
   ingressClassName: nginx
-
-  # ── TLS ───────────────────────────────────────────────────────────────────
-  # Comment out if TLS is terminated by an upstream load balancer
-  tls:
-    - hosts:
-        - YOUR_BACKSTAGE_DOMAIN
-      # The Secret must exist in the same namespace (backstage).
-      # If using cert-manager it will be created automatically.
-      secretName: backstage-tls
-
   rules:
-    - host: YOUR_BACKSTAGE_DOMAIN
-      http:
-        paths:
-          # ── Frontend ───────────────────────────────────────────────────────
-          # All non-API traffic goes to the React SPA
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: backstage-frontend
-                port:
-                  number: 8080
-
-          # ── Backend API ────────────────────────────────────────────────────
-          # /api/* routed to the Node.js backend
-          # Must be listed after / so PathType: Prefix matching works correctly
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: backstage-backend
-                port:
-                  number: 7007
+  - host: YOUR_BACKSTAGE_DOMAIN
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backstage-frontend
+            port:
+              number: 8080
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: backstage-backend
+            port:
+              number: 7007

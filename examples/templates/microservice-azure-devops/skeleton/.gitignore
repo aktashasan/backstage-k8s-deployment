@@ -1,0 +1,95 @@
+# General
+.DS_Store
+.idea/
+.vscode/
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+# Secrets
+*.pem
+*.key
+.env
+.env.local
+secrets/
+credentials.json
+
+{%- if values.language == 'java' %}
+# Java/Maven
+target/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.properties
+
+{%- elif values.language == 'nodejs' %}
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+dist/
+build/
+coverage/
+.next/
+
+{%- elif values.language == 'dotnet' %}
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.vs/
+project.lock.json
+
+{%- elif values.language == 'python' %}
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+{%- elif values.language == 'go' %}
+# Go
+bin/
+vendor/
+*.exe
+*.test
+*.out
+go.work
+{%- endif %}
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# Tilt
+.tiltbuild/
+
+# Testing
+coverage/
+test-results/
+*.test
+
+# Build artifacts
+*.tgz
+*.zip
+dist/

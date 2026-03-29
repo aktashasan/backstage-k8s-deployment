@@ -1,0 +1,31 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: authz
+  title: Authorization Service
+  description: Authorization service for role-based access control (RBAC)
+  tags:
+    - microservice
+    - authorization
+    - rbac
+    - security
+  annotations:
+    backstage.io/kubernetes-id: crystal-authz
+    backstage.io/kubernetes-namespace: crystal
+    backstage.io/kubernetes-label-selector: 'app=authz'
+    backstage.io/techdocs-ref: dir:.
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '3000'
+  links:
+    - url: https://YOUR_GITLAB_NAMESPACE/authz
+      title: Source Code
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: security-team
+  system: microservices-platform
+  providesApis:
+    - api:default/auth-api
+  dependsOn:
+    - resource:postgresql-shared

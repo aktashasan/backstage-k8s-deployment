@@ -1,0 +1,242 @@
+# Dev Branch Pipeline - Auto Deploy to Dev Cluster
+# Triggered on: commits to dev branch
+
+trigger:
+  branches:
+    include:
+      - dev
+  paths:
+    exclude:
+      - README.md
+      - docs/*
+
+pr: none
+
+variables:
+  componentId: '${{ values.component_id }}'
+  harborProject: '${{ values.harborProject }}'
+  imageName: '$(harborProject)/$(componentId)'
+  imageTag: 'dev-$(Build.BuildId)'
+  namespace: '${{ values.namespace }}'
+  clusterName: 'dev-cluster'
+  replicas: 1
+
+stages:
+  # Build & Test
+  - stage: BuildAndTest
+    displayName: 'Build & Test'
+    jobs:
+      - job: Build
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+
+          {%- if values.language == 'java' %}
+          - task: Maven@4
+            displayName: 'Maven Build & Test'
+            inputs:
+              mavenPomFile: 'pom.xml'
+              goals: 'clean package'
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+          {%- elif values.language == 'nodejs' %}
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+          - script: |
+              npm ci
+              npm run build
+              npm test
+            displayName: 'Build & Test'
+          {%- endif %}
+
+  # Docker Build & Push
+  - stage: ContainerBuild
+    displayName: 'Container Build'
+    dependsOn: BuildAndTest
+    jobs:
+      - job: Docker
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: Docker@2
+            displayName: 'Build Image'
+            inputs:
+              containerRegistry: 'Harbor-Registry'
+              repository: '$(imageName)'
+              command: 'build'
+              Dockerfile: 'Dockerfile'
+              tags: |
+                $(imageTag)
+                dev-latest
+
+          - task: Docker@2
+            displayName: 'Push to Harbor'
+            inputs:
+              containerRegistry: 'Harbor-Registry'
+              repository: '$(imageName)'
+              command: 'push'
+              tags: |
+                $(imageTag)
+                dev-latest
+
+          {%- if values.enableImageScan %}
+          - script: |
+              # Quick Trivy scan for dev
+              docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                aquasec/trivy image --severity HIGH,CRITICAL \
+                harbor.company.com/$(imageName):$(imageTag)
+            displayName: 'Quick Security Scan'
+            continueOnError: true
+          {%- endif %}
+
+  # Deploy to Dev Cluster
+  {%- if values.deployToDev %}
+  - stage: DeployDev
+    displayName: 'Deploy to Dev'
+    dependsOn: ContainerBuild
+    jobs:
+      - deployment: DeployToDevCluster
+        displayName: 'Deploy to Dev Cluster'
+        environment: 'dev-cluster'
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                {%- if values.gitopsProvider == 'argocd' %}
+                # ArgoCD GitOps Approach
+                - task: KubernetesManifest@1
+                  displayName: 'Update Image Tag in Git'
+                  inputs:
+                    action: 'deploy'
+                    connectionType: 'kubernetesServiceConnection'
+                    kubernetesServiceConnection: '$(clusterName)'
+                    namespace: '$(namespace)'
+                    manifests: |
+                      k8s/overlays/dev/kustomization.yaml
+                    
+                - script: |
+                    # Update image tag in kustomization
+                    cd k8s/overlays/dev
+                    kustomize edit set image $(imageName)=harbor.company.com/$(imageName):$(imageTag)
+                    
+                    # Commit and push
+                    git config user.email "azuredevops@company.com"
+                    git config user.name "Azure DevOps"
+                    git add kustomization.yaml
+                    git commit -m "Update dev image to $(imageTag) [skip ci]"
+                    git push origin dev
+                  displayName: 'GitOps: Update Image Tag'
+                  env:
+                    GIT_TOKEN: $(System.AccessToken)
+
+                - script: |
+                    # Trigger ArgoCD sync
+                    argocd app sync $(componentId) --prune
+                    argocd app wait $(componentId) --health --timeout 300
+                  displayName: 'ArgoCD: Sync Application'
+                  env:
+                    ARGOCD_SERVER: argocd.company.com
+                    ARGOCD_AUTH_TOKEN: $(ARGOCD_TOKEN)
+
+                {%- elif values.gitopsProvider == 'flux' %}
+                # FluxCD Approach
+                - script: |
+                    # Update image tag
+                    cd k8s/overlays/dev
+                    kustomize edit set image $(imageName)=harbor.company.com/$(imageName):$(imageTag)
+                    
+                    # Commit and push - Flux will auto-sync
+                    git config user.email "azuredevops@company.com"
+                    git config user.name "Azure DevOps"
+                    git add kustomization.yaml
+                    git commit -m "Update dev image to $(imageTag) [skip ci]"
+                    git push origin dev
+                  displayName: 'GitOps: Update for Flux'
+
+                {%- else %}
+                # Manual kubectl apply
+                - task: KubernetesManifest@1
+                  displayName: 'Deploy to Kubernetes'
+                  inputs:
+                    action: 'deploy'
+                    connectionType: 'kubernetesServiceConnection'
+                    kubernetesServiceConnection: '$(clusterName)'
+                    namespace: '$(namespace)'
+                    manifests: |
+                      k8s/base/deployment.yaml
+                      k8s/base/service.yaml
+                      {%- if values.enableIngress %}
+                      k8s/base/ingress.yaml
+                      {%- endif %}
+                    containers: 'harbor.company.com/$(imageName):$(imageTag)'
+                {%- endif %}
+
+                # Health Check
+                - script: |
+                    echo "Waiting for rollout..."
+                    kubectl rollout status deployment/$(componentId) -n $(namespace) --timeout=5m
+                    
+                    echo "Checking pod health..."
+                    kubectl get pods -n $(namespace) -l app=$(componentId)
+                  displayName: 'Verify Deployment'
+                  env:
+                    KUBECONFIG: $(Agent.TempDirectory)/kubeconfig
+
+                # Smoke Test
+                - script: |
+                    {%- if values.enableIngress %}
+                    SERVICE_URL="https://$(componentId)-dev.company.com"
+                    {%- else %}
+                    SERVICE_URL="http://$(kubectl get svc $(componentId) -n $(namespace) -o jsonpath='{.status.loadBalancer.ingress[0].ip}'):${{ values.containerPort }}"
+                    {%- endif %}
+                    
+                    echo "Testing health endpoint: $SERVICE_URL/health"
+                    for i in {1..10}; do
+                      RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" $SERVICE_URL/health)
+                      if [ "$RESPONSE" = "200" ]; then
+                        echo "Health check passed."
+                        exit 0
+                      fi
+                      echo "⏳ Waiting for service... (attempt $i/10)"
+                      sleep 10
+                    done
+                    echo "Health check failed."
+                    exit 1
+                  displayName: 'Smoke Test'
+                  continueOnError: true
+  {%- endif %}
+
+  # Notification
+  - stage: Notify
+    displayName: '📢 Notify'
+    dependsOn: DeployDev
+    condition: always()
+    jobs:
+      - job: NotifyTeam
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              STATUS="${{ dependencies.DeployDev.result }}"
+              if [ "$STATUS" = "Succeeded" ]; then
+                EMOJI="OK"
+                MESSAGE="Dev deployment successful!"
+              else
+                EMOJI="FAIL"
+                MESSAGE="Dev deployment failed!"
+              fi
+              
+              echo "$EMOJI $MESSAGE"
+              echo "Component: $(componentId)"
+              echo "Image: harbor.company.com/$(imageName):$(imageTag)"
+              echo "Namespace: $(namespace)"
+              {%- if values.enableIngress %}
+              echo "URL: https://$(componentId)-dev.company.com"
+              {%- endif %}
+            displayName: 'Deployment Status'

@@ -1,0 +1,393 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: azure-devops-microservice
+  title: Azure DevOps Microservice Template
+  description: Enterprise-grade microservice template with Azure DevOps CI/CD, Harbor Registry, Nexus Artifacts, and multi-cluster Kubernetes deployment
+  tags:
+    - microservice
+    - azure-devops
+    - kubernetes
+    - harbor
+    - nexus
+    - gitops
+spec:
+  owner: platform-team
+  type: service
+  
+  parameters:
+    # Step 1: Basic Information
+    - title: Microservice Bilgileri
+      required:
+        - component_id
+        - owner
+        - description
+      properties:
+        component_id:
+          title: Microservice Adı
+          type: string
+          description: Microservice için benzersiz ID (kebab-case)
+          pattern: '^[a-z0-9-]+$'
+          ui:autofocus: true
+          ui:help: 'Örnek: user-service, payment-api, order-processor'
+        description:
+          title: Açıklama
+          type: string
+          description: Microservice'in ne yaptığını açıklayın
+          ui:options:
+            rows: 3
+        owner:
+          title: Owner
+          type: string
+          description: Team veya kişi sahibi
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: [Group, User]
+        system:
+          title: System
+          type: string
+          description: Bu microservice hangi sisteme ait?
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: System
+    
+    # Step 2: Technology Stack
+    - title: Teknoloji Stack
+      required:
+        - language
+        - framework
+      properties:
+        language:
+          title: Programlama Dili
+          type: string
+          description: Microservice hangi dilde yazılacak?
+          enum:
+            - java
+            - dotnet
+            - nodejs
+            - python
+            - go
+          enumNames:
+            - 'Java (Spring Boot)'
+            - '.NET Core'
+            - 'Node.js (Express/NestJS)'
+            - 'Python (FastAPI/Django)'
+            - 'Go'
+          default: java
+        framework:
+          title: Framework
+          type: string
+          description: Kullanılacak framework
+          enum:
+            - spring-boot
+            - dotnet-webapi
+            - express
+            - nestjs
+            - fastapi
+            - django
+            - gin
+          enumNames:
+            - 'Spring Boot 3.x'
+            - '.NET 8 Web API'
+            - 'Express.js'
+            - 'NestJS'
+            - 'FastAPI'
+            - 'Django REST Framework'
+            - 'Gin (Go)'
+        database:
+          title: Database
+          type: string
+          description: Database tipi (opsiyonel)
+          enum:
+            - none
+            - postgresql
+            - mysql
+            - mongodb
+            - redis
+            - sqlserver
+          enumNames:
+            - 'Database kullanma'
+            - 'PostgreSQL'
+            - 'MySQL'
+            - 'MongoDB'
+            - 'Redis'
+            - 'SQL Server'
+          default: postgresql
+        enableObservability:
+          title: Observability Aktif?
+          type: boolean
+          description: Prometheus metrics, distributed tracing, logging
+          default: true
+    
+    # Step 3: Azure DevOps Configuration
+    - title: Azure DevOps Yapılandırması
+      required:
+        - azureDevOpsOrg
+        - azureDevOpsProject
+        - repoName
+      properties:
+        azureDevOpsOrg:
+          title: Azure DevOps Collection (Organization)
+          type: string
+          description: On-prem Azure DevOps Server collection adı (cloud'da organization adı)
+          default: DefaultCollection
+          ui:help: 'On-prem için: DefaultCollection — Cloud için: şirket-adı'
+        azureDevOpsProject:
+          title: Azure DevOps Project
+          type: string
+          description: Mevcut Azure DevOps proje adı (büyük/küçük harf duyarlı)
+          ui:help: 'Mevcut projeler: TFKB, CRYSTAL'
+        repoName:
+          title: Repository Adı
+          type: string
+          description: Oluşturulacak repo adı (boş bırakılırsa component_id kullanılır)
+        enableSonarQube:
+          title: SonarQube Code Scan
+          type: boolean
+          description: SonarQube entegrasyonu aktif olsun mu?
+          default: true
+        enableFortify:
+          title: Fortify Security Scan
+          type: boolean
+          description: Fortify güvenlik taraması aktif olsun mu?
+          default: false
+    
+    # Step 4: Container & Registry Configuration  
+    - title: Container ve Registry Yapılandırması
+      required:
+        - harborProject
+        - containerPort
+      properties:
+        harborProject:
+          title: Harbor Project
+          type: string
+          description: Harbor'da image push edilecek proje adı (mevcut veya yeni oluşturulacak)
+          default: microservices
+          ui:help: 'Örnek: microservices, platform, shared — YOUR_HARBOR_HOST üzerindeki proje adı'
+        nexusRepository:
+          title: Nexus Repository
+          type: string
+          description: Artifact'ların yükleneceği Nexus repository
+          default: maven-releases
+        containerPort:
+          title: Container Port
+          type: number
+          description: Microservice hangi port'ta çalışacak?
+          default: 8080
+        enableImageScan:
+          title: Image Security Scan
+          type: boolean
+          description: Trivy ile container image taraması
+          default: true
+    
+    # Step 5: Kubernetes Deployment Configuration
+    - title: Kubernetes Deployment Yapılandırması
+      required:
+        - deployToDev
+        - deployToTest
+        - deployToProd
+      properties:
+        deployToDev:
+          title: Dev Cluster'a Deploy
+          type: boolean
+          description: Dev branch'den otomatik deploy
+          default: true
+        deployToTest:
+          title: Test Cluster'a Deploy
+          type: boolean
+          description: PR oluşturulunca test cluster'a deploy
+          default: true
+        deployToProd:
+          title: Prod Cluster'a Deploy
+          type: boolean
+          description: Prod branch'e merge olunca prod cluster'a deploy
+          default: false
+        clusterType:
+          title: Cluster Tipi
+          type: string
+          description: OpenShift mi, Vanilla Kubernetes mi?
+          enum:
+            - openshift
+            - kubernetes
+          enumNames:
+            - 'OpenShift'
+            - 'Vanilla Kubernetes'
+          default: kubernetes
+        namespace:
+          title: Kubernetes Namespace
+          type: string
+          description: Deploy namespace (boş bırakılırsa component_id kullanılır)
+        replicas:
+          title: Replica Sayısı
+          type: number
+          description: Pod replica sayısı
+          default: 2
+          minimum: 1
+          maximum: 10
+        enableHPA:
+          title: Horizontal Pod Autoscaling
+          type: boolean
+          description: HPA aktif olsun mu?
+          default: true
+        enableIngress:
+          title: Ingress/Route Oluştur
+          type: boolean
+          description: External erişim için ingress oluşturulsun mu?
+          default: true
+    
+    # Step 6: GitOps & Tilt Configuration
+    - title: GitOps ve Local Development
+      properties:
+        gitopsProvider:
+          title: GitOps Provider
+          type: string
+          description: Kubernetes sync için hangi tool?
+          enum:
+            - argocd
+            - flux
+            - manual
+          enumNames:
+            - 'ArgoCD'
+            - 'FluxCD'
+            - 'Manual (kubectl apply)'
+          default: argocd
+        enableTilt:
+          title: Tilt Entegrasyonu
+          type: boolean
+          description: Local development için Tilt desteği
+          default: true
+        enableSkaffold:
+          title: Skaffold Support
+          type: boolean
+          description: Alternative local dev tool
+          default: false
+
+  # Template Steps
+  steps:
+    # Step 1: Fetch Base Template
+    - id: fetch-base
+      name: Fetch Base Template
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          component_id: ${{ parameters.component_id }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          system: ${{ parameters.system }}
+          language: ${{ parameters.language }}
+          framework: ${{ parameters.framework }}
+          database: ${{ parameters.database }}
+          enableObservability: ${{ parameters.enableObservability }}
+          azureDevOpsOrg: ${{ parameters.azureDevOpsOrg }}
+          azureDevOpsProject: ${{ parameters.azureDevOpsProject }}
+          repoName: ${{ parameters.repoName or parameters.component_id }}
+          harborProject: ${{ parameters.harborProject }}
+          nexusRepository: ${{ parameters.nexusRepository }}
+          containerPort: ${{ parameters.containerPort }}
+          enableImageScan: ${{ parameters.enableImageScan }}
+          deployToDev: ${{ parameters.deployToDev }}
+          deployToTest: ${{ parameters.deployToTest }}
+          deployToProd: ${{ parameters.deployToProd }}
+          clusterType: ${{ parameters.clusterType }}
+          namespace: ${{ parameters.namespace or parameters.component_id }}
+          replicas: ${{ parameters.replicas }}
+          enableHPA: ${{ parameters.enableHPA }}
+          enableIngress: ${{ parameters.enableIngress }}
+          gitopsProvider: ${{ parameters.gitopsProvider }}
+          enableTilt: ${{ parameters.enableTilt }}
+          enableSonarQube: ${{ parameters.enableSonarQube }}
+          enableFortify: ${{ parameters.enableFortify }}
+
+    # Step 2: Create Azure DevOps Repository
+    - id: publish-azure-devops
+      name: Publish to Azure DevOps
+      action: publish:azure
+      input:
+        repoUrl: 'YOUR_AZURE_DEVOPS_HOST?organization=${{ parameters.azureDevOpsOrg }}&project=${{ parameters.azureDevOpsProject }}&repo=${{ parameters.repoName or parameters.component_id }}'
+        description: ${{ parameters.description }}
+        defaultBranch: dev
+        sourcePath: .
+        gitAuthorName: Backstage
+        gitAuthorEmail: backstage@company.com
+
+    # Note: Pipeline creation is done manually or via Azure DevOps REST API
+    # The pipeline YAML files are already in the repository
+    # You can create pipelines using:
+    # 1. Azure DevOps UI: Pipelines → New Pipeline → Select repository → azure-pipelines.yml
+    # 2. Azure DevOps CLI: az pipelines create
+    # 3. Azure DevOps REST API
+
+    # Step 3: Create Harbor Project
+    - id: create-harbor-project
+      name: Create Harbor Project
+      action: harbor:create-project
+      input:
+        projectName: ${{ parameters.harborProject }}
+        public: false
+        autoScan: true
+        storageLimit: -1
+
+    # Step 4: Register Component in Catalog
+    - id: register
+      name: Register Component
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish-azure-devops'].output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
+        optional: true
+
+    # Step 5: Kubernetes Namespaces & ArgoCD (Manual Setup Required)
+    # Note: These steps require manual setup or custom actions:
+    # 
+    # 1. Create Kubernetes namespaces manually:
+    #    kubectl create namespace ${{ parameters.namespace }}-dev --context dev-cluster
+    #    kubectl create namespace ${{ parameters.namespace }}-test --context test-cluster
+    #    kubectl create namespace ${{ parameters.namespace }} --context prod-cluster
+    #
+    # 2. Create ArgoCD application (if using ArgoCD):
+    #    argocd app create ${{ parameters.component_id }} \
+    #      --repo ${{ steps['publish-azure-devops'].output.remoteUrl }} \
+    #      --path k8s/overlays/dev \
+    #      --dest-server https://kubernetes.default.svc \
+    #      --dest-namespace ${{ parameters.namespace }}-dev
+
+    # Step 7: Send Notification
+    - id: notify-team
+      name: Notify Team
+      action: notification:send
+      input:
+        recipients: entity
+        entityRefs:
+          - ${{ parameters.owner }}
+        title: 'New Microservice Created: ${{ parameters.component_id }}'
+        info: |
+          Microservice başarıyla oluşturuldu!
+          
+          Component: ${{ parameters.component_id }}
+          Stack: ${{ parameters.language }}/${{ parameters.framework }}
+          Azure DevOps: ${{ parameters.azureDevOpsOrg }}/${{ parameters.azureDevOpsProject }}
+          Harbor: ${{ parameters.harborProject }}
+          Clusters: Dev=${{ parameters.deployToDev }}, Test=${{ parameters.deployToTest }}, Prod=${{ parameters.deployToProd }}
+        severity: 'high'
+        link: ${{ steps['publish-azure-devops'].output.remoteUrl }}
+
+  # Output
+  output:
+    links:
+      - title: Repository (Azure DevOps)
+        url: ${{ steps['publish-azure-devops'].output.remoteUrl }}
+        icon: code
+      - title: Create Pipelines
+        url: 'https://YOUR_AZURE_DEVOPS_HOST/${{ parameters.azureDevOpsOrg }}/${{ parameters.azureDevOpsProject }}/_build'
+        icon: dashboard
+        description: 'Manually create pipelines from repository YAML files'
+      - title: Harbor Registry
+        url: 'https://YOUR_HARBOR_HOST/projects/${{ parameters.harborProject }}/repositories'
+        icon: storage
+      - title: Open in Catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}
+

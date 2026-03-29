@@ -1,0 +1,31 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: customer-mgmt
+  title: Customer Management
+  description: Customer relationship management service
+  tags:
+    - microservice
+    - crm
+    - customer
+    - management
+  annotations:
+    backstage.io/kubernetes-id: crystal-customer-mgmt
+    backstage.io/kubernetes-namespace: crystal
+    backstage.io/kubernetes-label-selector: 'app=customer-mgmt'
+    backstage.io/techdocs-ref: dir:.
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '3000'
+  links:
+    - url: https://YOUR_GITLAB_NAMESPACE/customer-mgmt
+      title: Source Code
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: backend-team
+  system: microservices-platform
+  providesApis:
+    - api:default/order-api
+  dependsOn:
+    - resource:postgresql-shared

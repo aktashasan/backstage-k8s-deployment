@@ -1,0 +1,391 @@
+# Resource Definitions - Infrastructure Components
+# Kubernetes Clusters, Databases, Message Queues, etc.
+
+---
+# Dev Kubernetes Cluster
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: kubernetes-dev-cluster
+  title: Development Kubernetes Cluster
+  description: Development environment Kubernetes cluster
+  tags:
+    - kubernetes
+    - dev
+    - development
+    - openshift
+  annotations:
+    kubernetes.io/cluster-name: dev-cluster
+    kubernetes.io/api-server: https://api.dev-cluster.company.com
+    kubernetes.io/version: v1.28.5
+    backstage.io/kubernetes-id: dev-cluster
+  links:
+    - url: https://rancher.company.com/c/dev-cluster
+      title: Rancher Dashboard
+      icon: dashboard
+    - url: https://console-openshift-console.apps.dev-cluster.company.com
+      title: OpenShift Console
+      icon: dashboard
+spec:
+  type: kubernetes-cluster
+  owner: platform-team
+  system: kubernetes-infrastructure
+  dependsOn:
+    - resource:harbor-dev-registry
+
+---
+# Test Kubernetes Cluster
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: kubernetes-test-cluster
+  title: Test Kubernetes Cluster
+  description: Testing and QA environment Kubernetes cluster
+  tags:
+    - kubernetes
+    - test
+    - qa
+    - openshift
+  annotations:
+    kubernetes.io/cluster-name: test-cluster
+    kubernetes.io/api-server: https://api.test-cluster.company.com
+    kubernetes.io/version: v1.28.5
+    backstage.io/kubernetes-id: test-cluster
+  links:
+    - url: https://rancher.company.com/c/test-cluster
+      title: Rancher Dashboard
+      icon: dashboard
+spec:
+  type: kubernetes-cluster
+  owner: platform-team
+  system: kubernetes-infrastructure
+  dependsOn:
+    - resource:harbor-test-registry
+
+---
+# Production Kubernetes Cluster
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: kubernetes-prod-cluster
+  title: Production Kubernetes Cluster
+  description: Production environment Kubernetes cluster with HA
+  tags:
+    - kubernetes
+    - production
+    - ha
+    - openshift
+  annotations:
+    kubernetes.io/cluster-name: prod-cluster
+    kubernetes.io/api-server: https://api.prod-cluster.company.com
+    kubernetes.io/version: v1.28.5
+    backstage.io/kubernetes-id: prod-cluster
+    kubernetes.io/high-availability: 'true'
+  links:
+    - url: https://rancher.company.com/c/prod-cluster
+      title: Rancher Dashboard
+      icon: dashboard
+    - url: https://console-openshift-console.apps.prod-cluster.company.com
+      title: OpenShift Console
+      icon: dashboard
+spec:
+  type: kubernetes-cluster
+  owner: platform-team
+  system: kubernetes-infrastructure
+  dependsOn:
+    - resource:harbor-prod-registry
+
+---
+# Harbor Registry - Dev
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: harbor-dev-registry
+  title: Harbor Container Registry (Dev)
+  description: Development container image registry with security scanning
+  tags:
+    - harbor
+    - registry
+    - containers
+    - dev
+  annotations:
+    harbor.io/project: microservices-dev
+    harbor.io/url: https://harbor.company.com
+  links:
+    - url: https://harbor.company.com/harbor/projects
+      title: Harbor Projects
+      icon: storage
+spec:
+  type: container-registry
+  owner: platform-team
+  system: artifact-management
+
+---
+# Harbor Registry - Production
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: harbor-prod-registry
+  title: Harbor Container Registry (Production)
+  description: Production container image registry with strict security policies
+  tags:
+    - harbor
+    - registry
+    - containers
+    - production
+  annotations:
+    harbor.io/project: microservices-prod
+    harbor.io/url: https://harbor.company.com
+    harbor.io/retention-policy: 'keep-last-10'
+  links:
+    - url: https://harbor.company.com/harbor/projects
+      title: Harbor Projects
+      icon: storage
+spec:
+  type: container-registry
+  owner: platform-team
+  system: artifact-management
+
+---
+# Nexus Repository
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: nexus-artifact-repository
+  title: Nexus Artifact Repository
+  description: Maven, npm, Docker artifact repository
+  tags:
+    - nexus
+    - artifacts
+    - maven
+    - npm
+  annotations:
+    nexus.io/url: https://nexus.company.com
+  links:
+    - url: https://nexus.company.com
+      title: Nexus Repository
+      icon: storage
+spec:
+  type: artifact-repository
+  owner: platform-team
+  system: artifact-management
+
+---
+# ArgoCD Dev
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: argocd-dev
+  title: ArgoCD (Development)
+  description: GitOps continuous deployment for development
+  tags:
+    - argocd
+    - gitops
+    - dev
+  annotations:
+    argocd.io/instance: dev
+    argocd.io/url: https://argocd-dev.company.com
+  links:
+    - url: https://argocd-dev.company.com
+      title: ArgoCD Dev
+      icon: sync
+spec:
+  type: gitops-controller
+  owner: platform-team
+  system: gitops-platform
+  dependsOn:
+    - resource:kubernetes-dev-cluster
+
+---
+# ArgoCD Production
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: argocd-prod
+  title: ArgoCD (Production)
+  description: GitOps continuous deployment for production
+  tags:
+    - argocd
+    - gitops
+    - production
+  annotations:
+    argocd.io/instance: prod
+    argocd.io/url: https://argocd.company.com
+  links:
+    - url: https://argocd.company.com
+      title: ArgoCD Production
+      icon: sync
+spec:
+  type: gitops-controller
+  owner: platform-team
+  system: gitops-platform
+  dependsOn:
+    - resource:kubernetes-prod-cluster
+
+---
+# PostgreSQL Database - Shared
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: postgresql-shared
+  title: PostgreSQL Database Cluster (Shared)
+  description: Shared PostgreSQL cluster for microservices
+  tags:
+    - postgresql
+    - database
+    - shared
+  annotations:
+    database.io/type: postgresql
+    database.io/version: '15.5'
+    database.io/high-availability: 'true'
+spec:
+  type: database
+  owner: platform-team
+  system: microservices-platform
+
+---
+# MongoDB - Shared
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: mongodb-shared
+  title: MongoDB Cluster (Shared)
+  description: Shared MongoDB cluster for microservices
+  tags:
+    - mongodb
+    - database
+    - nosql
+  annotations:
+    database.io/type: mongodb
+    database.io/version: '7.0'
+spec:
+  type: database
+  owner: platform-team
+  system: microservices-platform
+
+---
+# Redis Cache
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: redis-cache-cluster
+  title: Redis Cache Cluster
+  description: Redis cluster for caching and session storage
+  tags:
+    - redis
+    - cache
+    - session
+  annotations:
+    cache.io/type: redis
+    cache.io/version: '7.2'
+    cache.io/mode: cluster
+spec:
+  type: cache
+  owner: platform-team
+  system: microservices-platform
+
+---
+# Kafka Message Bus
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: kafka-message-bus
+  title: Apache Kafka Message Bus
+  description: Kafka cluster for event streaming and messaging
+  tags:
+    - kafka
+    - messaging
+    - event-streaming
+  annotations:
+    messaging.io/type: kafka
+    messaging.io/version: '3.6'
+spec:
+  type: message-bus
+  owner: platform-team
+  system: microservices-platform
+
+---
+# Prometheus Monitoring
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: prometheus-monitoring
+  title: Prometheus Monitoring
+  description: Prometheus for metrics collection and alerting
+  tags:
+    - prometheus
+    - monitoring
+    - metrics
+  annotations:
+    monitoring.io/type: prometheus
+  links:
+    - url: https://prometheus.company.com
+      title: Prometheus
+      icon: chart
+spec:
+  type: monitoring
+  owner: platform-team
+  system: observability
+
+---
+# Grafana Dashboards
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: grafana-dashboards
+  title: Grafana Dashboard Platform
+  description: Grafana for visualization and dashboards
+  tags:
+    - grafana
+    - dashboards
+    - visualization
+  annotations:
+    monitoring.io/type: grafana
+  links:
+    - url: https://grafana.company.com
+      title: Grafana
+      icon: dashboard
+spec:
+  type: monitoring
+  owner: platform-team
+  system: observability
+  dependsOn:
+    - resource:prometheus-monitoring
+
+---
+# SonarQube
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: sonarqube-scanner
+  title: SonarQube Code Quality
+  description: SonarQube for code quality and security analysis
+  tags:
+    - sonarqube
+    - code-quality
+    - security
+  links:
+    - url: https://sonarqube.company.com
+      title: SonarQube
+      icon: security
+spec:
+  type: security-scanner
+  owner: security-team
+  system: security-compliance
+
+---
+# Trivy Security Scanner
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: trivy-container-scanner
+  title: Trivy Container Scanner
+  description: Trivy for container vulnerability scanning
+  tags:
+    - trivy
+    - security
+    - container-scanning
+spec:
+  type: security-scanner
+  owner: security-team
+  system: security-compliance

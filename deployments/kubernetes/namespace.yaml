@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backstage
+  labels:
+    app: backstage
+    app.kubernetes.io/name: backstage
+    # Used by NetworkPolicy selectors if you add egress/ingress rules later
+    environment: production

@@ -1,0 +1,236 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Backstage Backend Deployment
+# Node.js service that hosts plugins, catalog engine, scaffolder, and REST API.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backstage-backend
+  namespace: backstage
+  labels:
+    app: backstage-backend
+    app.kubernetes.io/name: backstage-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/version: "YOUR_IMAGE_TAG"
+spec:
+  # Increase replicas for HA; ensure PostgreSQL connection pool handles it
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backstage-backend
+  template:
+    metadata:
+      labels:
+        app: backstage-backend
+        app.kubernetes.io/name: backstage-backend
+    spec:
+      # Use a dedicated ServiceAccount with minimal RBAC for the Kubernetes plugin
+      serviceAccountName: backstage-sa
+
+      containers:
+        - name: backstage-backend
+          # Replace with your actual image from your registry
+          image: YOUR_REGISTRY/backstage-backend:YOUR_IMAGE_TAG
+          imagePullPolicy: Always
+
+          ports:
+            - name: http
+              containerPort: 7007
+
+          # All secrets injected from the backstage-secrets Secret object.
+          # Never hard-code credentials here — use secretKeyRef.
+          env:
+            # ── PostgreSQL ────────────────────────────────────────────────
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: POSTGRES_HOST
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              value: backstage_plugin_catalog
+
+            # ── SCM Integrations ──────────────────────────────────────────
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: GITHUB_TOKEN
+            - name: AZURE_DEVOPS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: AZURE_DEVOPS_TOKEN
+            - name: AZURE_DEVOPS_ORG
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: AZURE_DEVOPS_ORG
+
+            # ── Kubernetes Cluster Tokens (multi-cluster) ─────────────────
+            - name: DEV_CLUSTER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: DEV_CLUSTER_URL
+            - name: DEV_CLUSTER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: DEV_CLUSTER_TOKEN
+            - name: TEST_CLUSTER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: TEST_CLUSTER_URL
+            - name: TEST_CLUSTER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: TEST_CLUSTER_TOKEN
+            - name: PROD_CLUSTER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: PROD_CLUSTER_URL
+            - name: PROD_CLUSTER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: PROD_CLUSTER_TOKEN
+
+            # ── Backend Auth ──────────────────────────────────────────────
+            # Must be identical across all backend replicas
+            - name: BACKEND_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: BACKEND_SECRET
+
+            # ── App URLs ─────────────────────────────────────────────────
+            - name: APP_BASE_URL
+              value: "https://YOUR_BACKSTAGE_DOMAIN"
+            - name: BACKEND_BASE_URL
+              value: "https://YOUR_BACKSTAGE_DOMAIN/api"
+
+          # Mount the app-config from a ConfigMap for non-secret configuration
+          volumeMounts:
+            - name: app-config
+              mountPath: /app/app-config.production.yaml
+              subPath: app-config.production.yaml
+              readOnly: true
+
+          # Liveness probe — restarts the pod if the backend stops responding
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 7007
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+
+          # Readiness probe — removes pod from Service endpoints until ready
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 7007
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+
+      volumes:
+        - name: app-config
+          configMap:
+            name: backstage-app-config
+
+      # Pull from private registry if needed
+      imagePullSecrets:
+        - name: YOUR_REGISTRY_SECRET_NAME
+
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Backstage Frontend Deployment
+# Pre-built React SPA served by a lightweight static server (e.g., nginx/serve).
+# If you use the "app-backend" approach (frontend served by backend), this
+# Deployment is not needed — remove it and update the Service/Ingress accordingly.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backstage-frontend
+  namespace: backstage
+  labels:
+    app: backstage-frontend
+    app.kubernetes.io/name: backstage-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/version: "YOUR_IMAGE_TAG"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backstage-frontend
+  template:
+    metadata:
+      labels:
+        app: backstage-frontend
+        app.kubernetes.io/name: backstage-frontend
+    spec:
+      containers:
+        - name: backstage-frontend
+          image: YOUR_REGISTRY/backstage-frontend:YOUR_IMAGE_TAG
+          imagePullPolicy: Always
+
+          ports:
+            - name: http
+              containerPort: 8080
+
+          env:
+            - name: APP_CONFIG_app_baseUrl
+              value: "https://YOUR_BACKSTAGE_DOMAIN"
+            - name: APP_CONFIG_backend_baseUrl
+              value: "https://YOUR_BACKSTAGE_DOMAIN/api"
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+
+      imagePullSecrets:
+        - name: YOUR_REGISTRY_SECRET_NAME

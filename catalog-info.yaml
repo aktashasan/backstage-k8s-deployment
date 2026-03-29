@@ -1,0 +1,75 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# catalog-info.yaml — Backstage Portal Self-Registration
+#
+# This file registers the Backstage portal itself in the Software Catalog.
+# Individual service repositories each carry their own catalog-info.yaml
+# and are registered via URL locations in app-config.yaml.
+#
+# Spec reference: https://backstage.io/docs/features/software-catalog/descriptor-format
+# ─────────────────────────────────────────────────────────────────────────────
+
+---
+# ── Component: Backstage Developer Portal ──────────────────────────────────
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: backstage-portal
+  title: Internal Developer Portal
+  description: >
+    Self-hosted Backstage instance running on Kubernetes. Provides service
+    catalog, software templates, TechDocs, and multi-cluster Kubernetes visibility.
+  annotations:
+    backstage.io/kubernetes-id: backstage-backend
+    backstage.io/kubernetes-namespace: backstage
+    backstage.io/techdocs-ref: dir:.
+    github.com/project-slug: YOUR_GITHUB_ORG/backstage-k8s-portfolio
+spec:
+  type: website
+  lifecycle: production
+  owner: group:platform-team
+  system: developer-platform
+
+---
+# ── System: Developer Platform ──────────────────────────────────────────────
+# A System groups related components, APIs, and resources.
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: developer-platform
+  title: Developer Platform
+  description: >
+    Internal developer tooling: Backstage portal, software templates,
+    TechDocs, and Kubernetes cluster visibility.
+spec:
+  owner: group:platform-team
+  domain: platform
+
+---
+# ── Domain: Platform ────────────────────────────────────────────────────────
+# Domains group Systems under a business area.
+apiVersion: backstage.io/v1alpha1
+kind: Domain
+metadata:
+  name: platform
+  title: Platform Engineering
+  description: Internal platform products and developer tooling.
+spec:
+  owner: group:platform-team
+
+---
+# ── Group: Platform Team ────────────────────────────────────────────────────
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: platform-team
+  title: Platform Engineering Team
+  description: Responsible for internal developer platform and infrastructure.
+spec:
+  type: team
+  profile:
+    displayName: Platform Team
+    email: platform@YOUR_ORG_DOMAIN
+  parent: engineering
+  children: []
+  members:
+    - YOUR_GITHUB_USERNAME

@@ -1,0 +1,42 @@
+# ── Secrets — NEVER commit these ───────────────────────────────────────────
+# secret.yaml contains real cluster tokens and passwords.
+# Use secret.example.yaml as the template, fill in locally, never push.
+deployments/kubernetes/secret.yaml
+backstage/app-config.local.yaml
+backstage/app-config.auth.yaml
+
+# Any file with "local" or "private" suffix
+*.local.yaml
+*.private.yaml
+
+# Generic secret files
+.env
+*.env
+.env.*
+!.env.example
+
+# Kubeconfig — never commit
+kubeconfig
+kubeconfig.yaml
+*.kubeconfig
+
+# TLS certs and private keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# ── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editor ──────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Node (if you add any tooling) ───────────────────────────────────────────
+node_modules/
+dist/

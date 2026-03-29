@@ -1,0 +1,43 @@
+---
+# Backend Service — exposes the Node.js API (port 7007)
+# The Ingress routes /api requests here
+apiVersion: v1
+kind: Service
+metadata:
+  name: backstage-backend
+  namespace: backstage
+  labels:
+    app: backstage-backend
+    app.kubernetes.io/name: backstage-backend
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: backstage-backend
+  ports:
+    - name: http
+      port: 7007
+      targetPort: 7007
+      protocol: TCP
+
+---
+# Frontend Service — exposes the React SPA (port 8080)
+# The Ingress routes / requests here
+apiVersion: v1
+kind: Service
+metadata:
+  name: backstage-frontend
+  namespace: backstage
+  labels:
+    app: backstage-frontend
+    app.kubernetes.io/name: backstage-frontend
+    app.kubernetes.io/component: frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: backstage-frontend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

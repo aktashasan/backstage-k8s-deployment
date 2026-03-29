@@ -1,0 +1,259 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Backstage app-config.yaml — Production-ready configuration skeleton
+#
+# Sensitive values are intentionally omitted.
+# In production, inject them as environment variables from a Kubernetes Secret.
+# See: deployments/kubernetes/deployment.yaml for the env var mapping.
+# ─────────────────────────────────────────────────────────────────────────────
+
+app:
+  title: YOUR_ORG_NAME Developer Portal
+  baseUrl: https://YOUR_BACKSTAGE_DOMAIN
+
+organization:
+  name: YOUR_ORG_NAME
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Backend
+# ─────────────────────────────────────────────────────────────────────────────
+backend:
+  baseUrl: https://YOUR_BACKSTAGE_DOMAIN/api
+  listen:
+    port: 7007
+    host: 0.0.0.0
+
+  csp:
+    connect-src: ["'self'", 'http:', 'https:']
+
+  cors:
+    origin: https://YOUR_BACKSTAGE_DOMAIN
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+
+  # Backend-to-plugin shared secret.
+  # Must be identical across all backend replicas.
+  auth:
+    keys:
+      - secret: ${BACKEND_SECRET}
+
+  # PostgreSQL — credentials injected from Kubernetes Secret
+  database:
+    client: pg
+    connection:
+      host: ${POSTGRES_HOST}
+      port: ${POSTGRES_PORT:-5432}
+      user: ${POSTGRES_USER}
+      password: ${POSTGRES_PASSWORD}
+      database: ${POSTGRES_DB:-backstage_plugin_catalog}
+      ssl:
+        # Set to false for in-cluster PostgreSQL without TLS
+        rejectUnauthorized: false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SCM Integrations
+# ─────────────────────────────────────────────────────────────────────────────
+integrations:
+  github:
+    - host: github.com
+      # GitHub Personal Access Token (classic or fine-grained)
+      # Required scopes: repo, read:org, read:user
+      token: ${GITHUB_TOKEN}
+
+  # Uncomment if you use Azure DevOps for source control or pipelines
+  azure:
+    - host: dev.azure.com
+      token: ${AZURE_DEVOPS_TOKEN}
+
+  # Uncomment for GitLab (self-hosted or SaaS)
+  # gitlab:
+  #   - host: YOUR_GITLAB_HOST
+  #     token: ${GITLAB_TOKEN}
+  #     apiBaseUrl: https://YOUR_GITLAB_HOST/api/v4
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Auth
+# Replace guest with a real provider (GitHub, Microsoft, Okta, etc.)
+# before going to production.
+# ─────────────────────────────────────────────────────────────────────────────
+auth:
+  environment: production
+  providers:
+    # Guest access — fine for internal teams, disable for stricter environments
+    guest:
+      dangerouslyAllowOutsideDevelopment: true
+
+    # GitHub OAuth — uncomment and configure to replace guest auth
+    # github:
+    #   production:
+    #     clientId: ${GITHUB_CLIENT_ID}
+    #     clientSecret: ${GITHUB_CLIENT_SECRET}
+
+    # Microsoft Azure AD — uncomment for enterprise SSO
+    # microsoft:
+    #   production:
+    #     clientId: ${AZURE_CLIENT_ID}
+    #     clientSecret: ${AZURE_CLIENT_SECRET}
+    #     tenantId: ${AZURE_TENANT_ID}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TechDocs
+# 'local' publisher is suitable for single-replica development.
+# Switch to 'azureBlobStorage' or 'googleGcs' for production HA setups.
+# ─────────────────────────────────────────────────────────────────────────────
+techdocs:
+  builder: 'local'
+  generator:
+    runIn: 'docker'
+  publisher:
+    type: 'local'
+
+    # Azure Blob Storage — uncomment for production
+    # type: 'azureBlobStorage'
+    # azureBlobStorage:
+    #   containerName: ${TECHDOCS_AZURE_CONTAINER_NAME}
+    #   credentials:
+    #     accountName: ${AZURE_STORAGE_ACCOUNT_NAME}
+    #     accountKey: ${AZURE_STORAGE_ACCOUNT_KEY}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Proxy
+# Backend acts as a reverse proxy for third-party APIs that don't support CORS.
+# Each entry maps a path prefix to a target service.
+# ─────────────────────────────────────────────────────────────────────────────
+proxy:
+  endpoints: {}
+  # Example — proxy to an internal metrics API:
+  # /metrics-api:
+  #   target: http://YOUR_METRICS_SERVICE:9090
+  #   changeOrigin: true
+  #   headers:
+  #     Authorization: Bearer ${METRICS_API_TOKEN}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Scaffolder
+# ─────────────────────────────────────────────────────────────────────────────
+scaffolder: {}
+  # Uncomment to set a default git author for scaffolder commits:
+  # defaultAuthor:
+  #   name: YOUR_BOT_NAME
+  #   email: bot@YOUR_ORG_DOMAIN
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Software Catalog
+# ─────────────────────────────────────────────────────────────────────────────
+catalog:
+  import:
+    entityFilename: catalog-info.yaml
+    pullRequestBranchName: backstage-integration
+
+  rules:
+    - allow: [Component, System, API, Resource, Location, Domain, Template, User, Group]
+
+  locations:
+    # ── Organizational structure ────────────────────────────────────────────
+    - type: file
+      target: ../../examples/org.yaml
+      rules:
+        - allow: [User, Group]
+
+    # ── Systems and domains ─────────────────────────────────────────────────
+    - type: file
+      target: ../../examples/systems.yaml
+      rules:
+        - allow: [System, Domain]
+
+    # ── Infrastructure resources ────────────────────────────────────────────
+    - type: file
+      target: ../../examples/resources.yaml
+      rules:
+        - allow: [Resource]
+
+    # ── API definitions ─────────────────────────────────────────────────────
+    - type: file
+      target: ../../examples/apis.yaml
+      rules:
+        - allow: [API]
+
+    # ── Software Templates ──────────────────────────────────────────────────
+    # Add your own template paths here once you create them.
+    # - type: file
+    #   target: ../../examples/templates/YOUR_TEMPLATE/template.yaml
+    #   rules:
+    #     - allow: [Template]
+
+    # ── Remote service registrations (GitHub URL locations) ─────────────────
+    # Each service repo's catalog-info.yaml is registered here.
+    # Alternatively, use GitHub org discovery (requires a GitHub App):
+    #
+    # - type: github-org
+    #   target: https://github.com/YOUR_GITHUB_ORG
+    #
+    # Per-repo:
+    # - type: url
+    #   target: https://github.com/YOUR_GITHUB_ORG/YOUR_REPO/blob/main/catalog-info.yaml
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Kubernetes Plugin
+# See: https://backstage.io/docs/features/kubernetes/configuration
+# ─────────────────────────────────────────────────────────────────────────────
+kubernetes:
+  serviceLocatorMethod:
+    # multiTenant: each component can be on any cluster; plugin searches all.
+    type: multiTenant
+
+  clusterLocatorMethods:
+    - type: config
+      clusters:
+        # ── Dev Cluster (Azure AKS) ─────────────────────────────────────────
+        - name: dev-cluster
+          url: ${DEV_CLUSTER_URL}
+          authProvider: serviceAccount
+          serviceAccountToken: ${DEV_CLUSTER_TOKEN}
+          # skipTLSVerify: true is acceptable for internal AKS endpoints
+          skipTLSVerify: true
+          skipMetricsLookup: false
+          dashboardUrl: https://portal.azure.com
+          dashboardApp: azure
+
+        # ── Test Cluster (Bare-metal / on-prem) ─────────────────────────────
+        - name: test-cluster
+          url: ${TEST_CLUSTER_URL}
+          authProvider: serviceAccount
+          serviceAccountToken: ${TEST_CLUSTER_TOKEN}
+          skipTLSVerify: true
+          skipMetricsLookup: false
+          # dashboardUrl: https://YOUR_RANCHER_URL/c/test-cluster
+          # dashboardApp: rancher
+
+        # ── Production Cluster (Bare-metal) ─────────────────────────────────
+        - name: prod-cluster
+          url: ${PROD_CLUSTER_URL}
+          authProvider: serviceAccount
+          serviceAccountToken: ${PROD_CLUSTER_TOKEN}
+          skipTLSVerify: true
+          skipMetricsLookup: false
+          # dashboardUrl: https://YOUR_RANCHER_URL/c/prod-cluster
+          # dashboardApp: rancher
+
+        # ── OpenShift Cluster (optional) ────────────────────────────────────
+        # Uncomment if you have an OpenShift cluster to observe
+        # - name: openshift-prod
+        #   url: ${OPENSHIFT_URL}
+        #   authProvider: serviceAccount
+        #   serviceAccountToken: ${OPENSHIFT_TOKEN}
+        #   skipTLSVerify: true
+        #   dashboardUrl: ${OPENSHIFT_CONSOLE_URL}
+        #   dashboardApp: openshift
+
+  # Surface custom CRDs in entity pages.
+  # ArgoCD Application resources are shown inline for GitOps visibility.
+  customResources:
+    - group: argoproj.io
+      apiVersion: v1alpha1
+      plural: applications
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Permission Framework
+# ─────────────────────────────────────────────────────────────────────────────
+permission:
+  enabled: true

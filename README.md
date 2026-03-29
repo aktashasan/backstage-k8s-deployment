@@ -185,7 +185,7 @@ You will also need:
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/YOUR_GITHUB_USERNAME/backstage-k8s-portfolio.git
+git clone https://github.com/aktashasan/backstage-k8s-portfolio.git
 cd backstage-k8s-portfolio
 
 # 2. Create namespace
@@ -396,4 +396,4 @@ This project is part of my public portfolio demonstrating real-world, production
 
 ---
 
-*If you have questions or want to discuss the architecture, feel free to open an issue or reach out on [LinkedIn](https://linkedin.com/in/YOUR_LINKEDIN_USERNAME).*
+*If you have questions or want to discuss the architecture, feel free to open an issue or reach out on [LinkedIn](https://linkedin.com/in/aktashasan).*

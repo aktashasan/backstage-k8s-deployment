@@ -13,6 +13,7 @@
 - [Why Backstage?](#why-backstage)
 - [Architecture](#architecture)
 - [Features](#features)
+- [Customizations](#customizations)
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [Detailed Installation](#detailed-installation)
@@ -94,6 +95,71 @@ I chose to self-host rather than use a SaaS alternative because:
 - **Harbor Registry plugin** — container image metadata per service
 - **RBAC** — permission framework enabled, guest and GitHub OAuth providers
 - **GitOps-ready** — all manifests compatible with ArgoCD / Flux
+
+---
+
+## Customizations
+
+This is not a vanilla Backstage install. Below is a breakdown of everything that was added or changed on top of the default scaffold.
+
+### Frontend
+
+| Area | What changed |
+|---|---|
+| **Home page** | Replaced the default catalog redirect with a custom `HomePage.tsx` featuring a search bar and quick-access cards |
+| **Sidebar** | Custom `Root.tsx` — reorganized navigation groups (Home, Catalog, APIs, Docs, Create), added Notifications section, custom SVG logo with `#7df3e1` accent |
+| **Entity page** | `EntityPage.tsx` extended with a **Kubernetes tab** — shows live pod status, restart counts, resource usage, and events per component |
+| **Search page** | Custom `SearchPage.tsx` with type filters (catalog, TechDocs) and result grouping |
+| **TechDocs** | `ReportIssue` addon enabled — readers can open a GitHub issue directly from any documentation page |
+| **Notifications** | `SignalsDisplay` + `NotificationsPage` wired into the app shell for real-time backend events |
+| **Sign-in** | Auto sign-in with guest provider (`auto` mode) — no login prompt for internal use |
+
+**Added frontend plugins (not in default install):**
+
+| Plugin | Purpose |
+|---|---|
+| `@backstage/plugin-kubernetes` | Live Kubernetes workload view per entity |
+| `@backstage/plugin-catalog-graph` | Interactive service dependency graph |
+| `@backstage/plugin-notifications` | In-portal notification feed |
+| `@backstage/plugin-signals` | WebSocket-based real-time updates |
+| `@backstage/plugin-techdocs-module-addons-contrib` | `ReportIssue` addon for TechDocs |
+| `@backstage/plugin-permission-react` | `RequirePermission` guard on catalog import route |
+
+---
+
+### Backend
+
+| Area | What changed |
+|---|---|
+| **Custom scaffolder module** | `harbor:create-project` and `harbor:create-robot-account` actions — automatically provision a Harbor registry project and robot account as part of any software template |
+| **Azure DevOps module** | Scaffolder wired to Azure DevOps for pipeline creation and repo scaffolding |
+| **GitLab module** | Scaffolder support for GitLab-hosted repositories |
+| **Notifications + Signals** | Real-time notification backend enabled alongside the frontend |
+| **PostgreSQL search** | `plugin-search-backend-module-pg` — full-text search backed by PostgreSQL instead of the default in-memory index |
+| **Kubernetes backend** | `plugin-kubernetes-backend` proxying API calls to multiple clusters via injected ServiceAccount tokens |
+| **Permission framework** | `allow-all-policy` registered (framework enabled, policies ready to harden) |
+
+**Custom scaffolder actions** (`packages/backend/src/plugins/scaffolder-custom/`):
+
+```
+harbor:create-project       — creates a new project in Harbor Registry via REST API
+harbor:create-robot-account — creates a scoped robot account and returns the credentials
+```
+
+Both actions read `harbor.url`, `harbor.username`, and `harbor.password` from `app-config.yaml` and skip gracefully if config is absent.
+
+---
+
+### Software Templates
+
+Four production-grade templates ship with this setup:
+
+| Template | Description |
+|---|---|
+| `microservice-azure-devops` | Scaffolds a service repo + Azure DevOps CI pipeline + Harbor project |
+| `regulated-microservice-azure-devops` | Same as above with compliance gates (SOC2/PCI annotations) |
+| `microservice-gitops` | Helm chart + Dockerfile + Azure Pipelines, GitOps-ready |
+| `openshift-iterate-service` | OpenShift manifests + GitLab CI pipeline for OpenShift Iterate |
 
 ---
 
